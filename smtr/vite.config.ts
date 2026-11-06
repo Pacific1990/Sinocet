@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 // PDF-based interface under /smtr/. Development proxy is local only.
@@ -16,4 +16,5 @@ export default defineConfig({
     },
   },
   build: { outDir: 'dist' },
+  test: { include: ['src/**/*.test.ts','src/**/*.test.tsx'] },
 });
