@@ -1,0 +1,29 @@
+name: SMTR Web CI
+
+on:
+  push:
+    paths:
+      - 'smtr/**'
+      - '.github/workflows/smtr-ci.yml'
+  pull_request:
+    paths:
+      - 'smtr/**'
+      - '.github/workflows/smtr-ci.yml'
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: smtr
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Permissions and role tests
+        run: npm run test
+      - name: Production TypeScript + Vite build
+        run: npm run build
