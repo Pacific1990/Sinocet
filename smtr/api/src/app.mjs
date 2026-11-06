@@ -40,6 +40,10 @@ export function makeApp(pool) {
   app.use((_req,_res,next)=>next(new HttpError(404,'Route inconnue.','NOT_FOUND')));
   app.use((error,_req,res,_next)=>{
     if(error?.code==='ER_DUP_ENTRY')return res.status(409).json({message:'Enregistrement existant ou IMEI déjà utilisé.',code:'DUPLICATE'});
+    if(['ER_LOCK_DEADLOCK','ER_LOCK_WAIT_TIMEOUT'].includes(error?.code)) {
+      // Concurrent stock allocation: transaction was rolled back, never claim success.
+      return res.status(409).json({message:'Le stock a été modifié simultanément. Actualisez et réessayez.',code:'STOCK_CONFLICT'});
+    }
     if(error?.type==='entity.parse.failed'||error?.type==='entity.too.large'){
       return res.status(400).json({message:'Requête JSON invalide.',code:'INVALID_JSON'});
     }
