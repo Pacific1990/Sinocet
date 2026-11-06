@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { fetchList, fetchMetrics, login, ApiError, type Session, type ListRecord, type SummaryMetric } from './api';
-import { canView, isModule, isRole, roleModules, type ModuleId, type Role } from './permissions';
+import { canView, isRole, roleModules, type ModuleId, type Role } from './permissions';
 
 type ModuleDefinition = {
   title: string;
