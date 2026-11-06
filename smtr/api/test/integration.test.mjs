@@ -63,7 +63,7 @@ const bearer=token=>({Authorization:'Bearer '+token});
 const payload=(id,agent=users.agent,itemIds=items.slice(0,2))=>({
   requestId:id, sourceWarehouseId:warehouses.central,agentId:agent,itemIds,
 });
-const requestId=a=>a+'0000000-0000-4000-8000-000000000000'.slice(a.length);
+const requestId=a=>a+'0000000-0000-4000-8000-000000000000';
 
 test('Director login is blocked without 2FA and rejects OTP replay',async()=>{
   const missing=await request(app).post(base+'/auth/login').send({email:'director@smtr.test',password:PASSWORD});
