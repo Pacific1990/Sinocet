@@ -7,7 +7,8 @@ import {
   Smartphone, Users, Wallet, X,
   type LucideIcon,
 } from 'lucide-react';
-import { fetchList, fetchMetrics, login, ApiError, type Session, type ListRecord, type SummaryMetric } from './api';
+import { fetchList, fetchMetrics, login, logout as logoutRemote, ApiError, type Session, type ListRecord, type SummaryMetric } from './api';
+import Operations from './Operations';
 import { canView, isRole, roleModules, type ModuleId, type Role } from './permissions';
 
 type ModuleDefinition = {
@@ -67,6 +68,7 @@ function EmptyState({ title, description, icon: Icon = PackageSearch }: {
 function Login({ onSuccess }: { onSuccess: (session: Session) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -75,8 +77,9 @@ function Login({ onSuccess }: { onSuccess: (session: Session) => void }) {
     setError('');
     setBusy(true);
     try {
-      const authenticated = await login(email.trim(), password);
+      const authenticated = await login(email.trim(), password, otp.trim() || undefined);
       setPassword('');
+      setOtp('');
       onSuccess(authenticated);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Impossible de se connecter.');
@@ -112,6 +115,10 @@ function Login({ onSuccess }: { onSuccess: (session: Session) => void }) {
           <label htmlFor="smtr-password">Mot de passe</label>
           <input id="smtr-password" type="password" autoComplete="current-password" value={password}
             onChange={event => setPassword(event.target.value)} placeholder="Votre mot de passe" required />
+          <label htmlFor="smtr-otp">Code de vérification 2FA — Direction</label>
+          <input id="smtr-otp" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+            pattern="[0-9]{6}" value={otp} onChange={event => setOtp(event.target.value.replace(/\D/g, ""))}
+            placeholder="6 chiffres si la double authentification est active" />
           {error && <p className="form-error" role="alert"><AlertCircle size={17} />{error}</p>}
           <button className="primary-button" type="submit" disabled={busy}>
             {busy ? <LoaderCircle className="spin" size={19} /> : <>Se connecter <ArrowRight size={19}/></>}
@@ -172,7 +179,7 @@ function Workspace({ session, previewRole, onLogout }: {
   }, []);
 
   useEffect(() => {
-    if (preview || !session || !canView(role, screen)) return;
+    if (preview || !session || !canView(role, screen) || screen === 'stocks' || screen === 'transfers') return;
     const controller = new AbortController();
     setBusy(true);
     setError('');
@@ -263,7 +270,10 @@ function Workspace({ session, previewRole, onLogout }: {
           <span className="welcome-decoration" aria-hidden="true"><Activity size={76} strokeWidth={1.4}/></span>
         </section>}
 
-        <section className="workspace-section" aria-live="polite">
+        {(screen === 'stocks' || screen === 'transfers') && <Operations
+          screen={screen} role={role} token={session?.accessToken ?? null} preview={preview}
+          onLogout={onLogout} onNavigate={navigate} />}
+        {screen !== 'stocks' && screen !== 'transfers' && <section className="workspace-section" aria-live="polite">
           <div className="section-title">
             <div><span className="section-kicker">DONNÉES MÉTIER</span><h2>{screen === 'dashboard' ? 'Indicateurs' : 'Éléments disponibles'}</h2></div>
             <span className="section-tag">{preview ? 'APERÇU' : 'API'}</span>
@@ -279,7 +289,7 @@ function Workspace({ session, previewRole, onLogout }: {
             : <EmptyState title="Aucune donnée à afficher"
                 description={preview ? 'Cet aperçu montre les écrans sans inventer de ventes, de clients ou de stock.' : 'Aucun élément n’a été renvoyé par le serveur pour votre périmètre.'}/>
           )}
-        </section>
+        </section>}
 
         <div className="scope-note">
           <span><Shield size={17}/></span>
@@ -305,9 +315,10 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const previewRole = getPreviewRole();
   const logout = useMemo(() => () => {
+    if (session) void logoutRemote(session.accessToken).catch(() => undefined);
     setSession(null);
     if (previewRole) window.location.assign(window.location.pathname);
-  }, [previewRole]);
+  }, [previewRole, session]);
   return session || previewRole
     ? <Workspace session={session} previewRole={previewRole} onLogout={logout}/>
     : <Login onSuccess={setSession}/>;
