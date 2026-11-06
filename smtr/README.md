@@ -1,53 +1,50 @@
 # SMTR — Groupe Sinocet Electronics
 
-**Système de Management & Suivi en Temps Réel.** Première base de code **mobile-first**, tirée du catalogue d'interfaces CDC-SINOCET-2026-001 v3.1. Les maquettes sont un référentiel de conception, pas une preuve de fonctionnalités livrées.
+**Système de Management & Suivi en Temps Réel.** Implémentation en cours, à partir du document utilisateur **SMTR Sinocet Catalogue Maquettes.pdf, CDC-SINOCET-2026-001, v3.1**.
 
-## Démarrage
+## Interfaces fidèles aux maquettes
 
-Prérequis : Node.js 20.19+ (ou 22+), npm.
+Les écrans opérationnels reprennent les intitulés, la hiérarchie des blocs et les couleurs du catalogue : **page 11 Stock Central**, **page 12 Nouveau transfert — Central → Agent**, **page 17 Valider une réception (Agent)**. Les maquettes du PDF sont la référence de conception. L'interface peut être consultée sur téléphone (navigation basse) ou ordinateur (navigation latérale).
 
-1. Depuis la racine du dépôt : `cd smtr`
-2. Installer les dépendances : `npm install`
-3. Copier `.env.example` en `.env.local` et configurer `VITE_SMTR_API_BASE_URL` vers une API autorisée.
-4. Lancer : `npm run dev`. Sur mobile, ouvrir l'adresse réseau de l'ordinateur uniquement sur un réseau de développement maîtrisé.
-5. Vérifier : `npm run test` et `npm run build`.
+Aucune donnée d'activité artificielle n'est insérée. L'aperçu visuel temporaire sans données n'existe que dans le serveur de développement (`?preview=agent`, `?preview=manager`, `?preview=director`) et n'active aucune transaction.
 
-Pour prévisualiser **uniquement la structure des écrans sans données** en mode développement, ajouter `?preview=agent`, `?preview=manager` ou `?preview=director`. L'aperçu est désactivé dans le build de production et n'effectue aucune opération. Il ne crée ni comptes, ni ventes.
+## Développement local
 
-## Architecture actuelle
+Prérequis : Node.js 22+, MySQL 8+, npm. Démarrer depuis la racine de `smtr/` :
 
-`smtr/src/api.ts` est l'unique adaptateur réseau. Le navigateur **ne parle jamais directement à une base SQL**. `src/permissions.ts` gère la visibilité UX par rôle, **sans remplacer** les contrôles d'accès côté serveur.
+### 1. API et MySQL
 
-- **Direction (2FA obligatoire sur l'API)** : vue globale, supervision, utilisateurs, audit, rapports.
-- **Manager** : stock central, transferts et validation de réception, inventaire, validations sensibles.
-- **Agent** : vente, mon stock, réception, dettes clients, caisse, SAV.
-- **Transverse** : SAV, dettes, rapports, selon les permissions effectives renvoyées par l'API.
+- Créer **une base vide** MySQL 8 et un utilisateur SQL dédié, avec les droits nécessaires uniquement à cette base.
+- `cd api` ; `npm install`
+- Copier `.env.example` → `.env` et renseigner `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` et `SMTR_TOTP_ENCRYPTION_KEY` (une clé privée aléatoire de **64 caractères hexadécimaux**, non stockée dans Git).
+- `npm run migrate` : crée les tables, les trois rôles de système, aucun compte utilisateur ni produit fictif.
+- Configurer un entrepôt réel et les comptes autorisés : voir [instructions API](api/README.md).
+- `npm run dev` : serveur API à `http://localhost:4010/smtr/api/v1` par défaut.
 
-Le design est conçu pour la consultation debout sur téléphone : navigation basse persistante, zones tactiles >= 44 px, contraste élevé, listes sous forme de cartes sur mobile et tableaux à partir d'un écran large.
+### 2. Frontend
 
-## API attendue (contrat de démarrage, pas encore implémentée)
+Dans un second terminal, depuis `smtr/` :
 
-Base configurable, par défaut `/smtr/api/v1`. Réponses JSON, erreurs avec `message`, autorisation Bearer. L'API devra définir et faire respecter :
+- `npm install` puis `npm run dev`.
+- Ouvrir `http://localhost:5173/smtr/`. Vite relaie les appels locaux `/smtr/api/v1` vers le serveur API.
+- `npm run test` et `npm run build` pour les contrôles frontend.
 
-- `POST /auth/login` avec `{ email, password }` -> `{ accessToken, user: { id, name, role, twoFactorVerified } }`. Une authentification DG est refusée tant que `twoFactorVerified` n'est pas vraie. Le token d'accès reste **en mémoire**, jamais dans `localStorage`.
-- `GET /dashboard/summary` -> `{ metrics: [{ id, label, value, hint? }] }`. Les montants ne sont **jamais fabriqués**.
-- `GET /stocks`, `/transfers`, `/sales`, `/debts`, `/cases`, `/reports`, `/audit/events`, `/users` -> `{ items: [{ id, title, subtitle?, status?, meta? }] }`. Ces objets sont des **projections sécurisées** : pas d'IMEI complet ou de données personnelles pour un rôle non autorisé.
+**Important :** les tokens d'accès restent en mémoire du navigateur, jamais dans `localStorage`. La session expire à la fermeture/au rechargement de la page (une nouvelle connexion est nécessaire). Les autorisations réelles sont appliquées dans l'API ; la navigation ne confère aucun privilège.
 
-Les endpoints ci-dessus sont des contrats projetés pour une première intégration ; ils doivent être alignés sur les modèles métier et les conventions d'authentification retenus avant développement des services.
+## Périmètre fonctionnel déjà codé
 
-### Ce qui n'est pas encore livré
+- Authentification : mots de passe Argon2id, sessions opaques hachées en base et révocables, blocage temporaire après tentatives erronées, 2FA/TOTP pour la Direction.
+- Produits et exemplaires : réception manager au stock central, IMEI uniques au niveau SQL, contrôle de format et de collision, stock agent cloisonné.
+- Transfert Central → Agent : sélection d'IMEI disponibles, réservation transactionnelle, état **IN_TRANSIT** ; IMEI non vendables pendant le transport.
+- Réception agent : validation de **tous** les IMEI attendus avant mouvement vers son stock, strictement réservée à l'agent destinataire et protégée contre les doublons.
+- Écart : signalement avec liste des articles vérifiés, passage à **DISCREPANCY**, gel **HOLD** des exemplaires concernés, journal d'audit. Une résolution managériale et un retour physique vérifié restent à développer.
 
-Aucun service backend, aucune connexion réelle, aucune migration de base, aucune synchronisation WebSocket, aucun paiement, aucune exportation PDF/Excel, aucune vente ou réception modifiant le stock, aucune authentification 2FA et **aucune vente hors ligne** ne sont implémentés dans cette première version. Les boutons d'actions sensibles ne sont pas proposés tant que les règles transactionnelles et d'idempotence ne sont pas opérationnelles.
+Les données brutes d'IMEI ne sont pas renvoyées à l'UI : seulement leurs derniers chiffres. L'agent ne voit pas les marges/prix d'achat et ne peut pas rechercher le stock central.
 
-## Prochain lot fonctionnel
+## Ce qui reste non implémenté
 
-1. Authentification sécurisée et 2FA DG, permissions et filtres de périmètre côté API.
-2. Modèle produit/format/IMEI, entrepôt central/agent/transit/SAV et journal des mouvements.
-3. Transfert central vers agent : réservation atomique, état *En transit*, réception explicite avant entrée dans le stock vendable.
-4. POS : vente depuis le stock réellement disponible, prix figés, paiement comptant/crédit et caisse.
-5. SAV : entrepôt virtuel « Ramba » pour retours pour défaut d'usine, **jamais** catégorie d'achat fournisseur.
-6. Créances, échéances, rapports et audits immuables ; puis synchronisation hors ligne **sécurisée**.
+Ventes et factures, crédit, caisse, opérations SAV/Ramba complètes, inventaires tournants, exports PDF/Excel, synchronisation WebSocket, clôture managériale d'un écart, connexion hors ligne et PWA hors ligne. Aucun bouton ne doit simuler leur succès.
 
-## Sécurité
+La connexion à de vraies données et le déploiement de production demandent : revue du cahier des charges complet, validation des droits utilisateurs et des entrepôts réels, sauvegarde MySQL, HTTPS, gestion des secrets et stratégie de migrations versionnées. Ce code constitue **une première livraison de développement**, non une mise en production.
 
-Toutes les actions de stock, ventes, crédits et SAV doivent être autorisées et transactionnelles sur le serveur. Les permissions de navigation ne valent jamais autorisation. Le journal d'audit doit être append-only ; l'identification utilisateur, l'horodatage, la provenance de la requête et le détail avant/après sont à enregistrer côté serveur. Les secrets et données financières ne doivent pas être introduits dans le code source.
+Voir [Référence PDF](docs/FIDELITE_PDF.md) et [contrat API](api/README.md).
