@@ -20,7 +20,7 @@ before(async()=>{
 after(async()=>{if(pool)await pool.end();});
 beforeEach(async()=>{
   for(const table of ['logs','transfers_items','transfers','items','products','warehouses','sessions','users']){
-    await pool.query('DELETE FROM §'+table+'§'.replaceAll('§',String.fromCharCode(96)));
+    await pool.query('DELETE FROM '+table);
   }
   secret=newTotpSecret();
   const [roles]=await pool.query('SELECT id,code FROM roles');
