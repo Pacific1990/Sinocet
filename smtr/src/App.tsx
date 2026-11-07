@@ -189,7 +189,7 @@ function Workspace({session,preview,onLogout}:{
         const protocol=location.protocol==='https:'?'wss:':'ws:';
         socket=new WebSocket(protocol+'//'+location.host+'/smtr/ws?ticket='+encodeURIComponent(response.ticket));
         socket.onmessage=event=>{
-          try{const data=JSON.parse(String(event.data));if(data?.event==='refresh')setRefresh(x=>x+1);}catch{/* ignore invalid */ }
+          try{const data=JSON.parse(String(event.data));if(data?.event==='refresh'){setRefresh(x=>x+1);if(data.resource==='system')setAccessReload(x=>x+1);}}catch{/* ignore invalid */ }
         };
         socket.onclose=()=>{if(active)retry=window.setTimeout(()=>{void connect();},15000);};
       }catch{/* User can manually refresh if WebSocket is unreachable */ }
