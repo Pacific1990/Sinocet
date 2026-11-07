@@ -60,5 +60,11 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run check
       - run: npm run migrate
+        env:
+          DB_USER: root
+          DB_PASSWORD: ci_root_pw
       - run: npm run migrate
+        env:
+          DB_USER: root
+          DB_PASSWORD: ci_root_pw
       - run: npm test
