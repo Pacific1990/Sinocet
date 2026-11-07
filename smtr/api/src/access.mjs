@@ -122,4 +122,3 @@ export function accessRoutes(pool){
   });
   return router;
 }
-

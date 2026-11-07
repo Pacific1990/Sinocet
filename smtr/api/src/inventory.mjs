@@ -257,7 +257,7 @@ export function inventoryRoutes(pool){
         const [open]=await conn.query(
           "SELECT id FROM inventories WHERE warehouse_id=? AND status='IN_PROGRESS' LIMIT 1",[id]
         );
-        assert(desired||!open.length,409,'Inventaire en cours : dégel interdit.'); 
+        assert(desired||!open.length,409,'Inventaire en cours : dégel interdit.');
         if(!desired){
           const [unresolved]=await conn.query(
             "SELECT inv.id FROM inventories inv WHERE inv.warehouse_id=? "+

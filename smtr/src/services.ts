@@ -86,4 +86,3 @@ export type AuditEvent={
   id:string;actor:string;action:string;entity:string;entityId:string|null;
   occurredAt:string;sourceIp:string|null;details:unknown;
 };
-
