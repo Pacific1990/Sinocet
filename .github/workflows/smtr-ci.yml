@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm run test
       - run: npm run build
 
@@ -57,8 +57,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm run check
       - run: npm run migrate
+        env:
+          DB_USER: root
+          DB_PASSWORD: ci_root_pw
       - run: npm run migrate
+        env:
+          DB_USER: root
+          DB_PASSWORD: ci_root_pw
       - run: npm test

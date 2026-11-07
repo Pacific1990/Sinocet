@@ -10,16 +10,20 @@
     "start": "node src/server.mjs",
     "dev": "node --watch src/server.mjs",
     "migrate": "node scripts/migrate.mjs",
-    "test": "node --test test/*.test.mjs",
-    "check": "node --check src/server.mjs && node --check src/app.mjs && node --check src/auth.mjs && node --check src/stock.mjs && node --check src/transfers.mjs && node --check scripts/provision.mjs"
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "check": "node --check src/server.mjs && node --check src/app.mjs && node --check src/auth.mjs && node --check src/stock.mjs && node --check src/transfers.mjs && node --check src/sales.mjs && node --check src/credits.mjs && node --check src/cash.mjs && node --check src/approvals.mjs && node --check src/inventory.mjs && node --check src/sav.mjs && node --check src/reports.mjs && node --check src/access.mjs && node --check src/system.mjs && node --check src/admin.mjs && node --check scripts/provision.mjs && node --check src/configuration.mjs && node --check src/realtime.mjs"
   },
   "dependencies": {
     "argon2": "^0.41.1",
     "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
-    "mysql2": "^3.12.0"
+    "multer": "^2.5.0",
+    "mysql2": "^3.12.0",
+    "pdfkit": "^0.20.2",
+    "ws": "^8.22.1"
   },
   "devDependencies": {
     "supertest": "^7.0.0"

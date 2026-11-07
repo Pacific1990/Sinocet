@@ -12,20 +12,25 @@ try {
     const role=process.env.SMTR_USER_ROLE;
     const password=process.env.SMTR_USER_PASSWORD||'';
     if(name.length<2||name.length>150||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||
-       !['director','manager','agent'].includes(role)||password.length<12) {
+       !['admin','director','manager','agent'].includes(role)||password.length<12) {
       throw new Error('Missing/invalid user name, email, role or a password of at least 12 characters');
     }
     const agentWarehouseName=(process.env.SMTR_AGENT_WAREHOUSE_NAME||'').trim();
     if(role==='agent' && !agentWarehouseName) throw new Error('SMTR_AGENT_WAREHOUSE_NAME required for agent');
-    const generatedSecret=role==='director'?newTotpSecret():null;
+    const generatedSecret=['director','admin'].includes(role)?newTotpSecret():null;
     const totpCipher=generatedSecret?encryptTotp(generatedSecret):null;
     const passwordHash=await argon2.hash(password,{type:argon2.argon2id,memoryCost:65536,timeCost:3,parallelism:1});
+    const approvalCode=role==='manager'?(process.env.SMTR_MANAGER_APPROVAL_CODE||''):null;
+    if(role==='manager'&&!/^\d{6}$/.test(approvalCode)) {
+      throw new Error('Manager must have a private 6-digit SMTR_MANAGER_APPROVAL_CODE');
+    }
+    const approvalHash=approvalCode?await argon2.hash(approvalCode,{type:argon2.argon2id}):null;
     const id=await transaction(pool,async conn=>{
       const [roles]=await conn.query('SELECT id FROM roles WHERE code=?',[role]);
       if(!roles.length)throw new Error('Role tables missing: migrate first');
       const [user]=await conn.query(
-        'INSERT INTO users(email,name,password_hash,role_id,totp_secret_encrypted) VALUES (?,?,?,?,?)',
-        [email,name,passwordHash,roles[0].id,totpCipher]
+        'INSERT INTO users(email,name,password_hash,role_id,totp_secret_encrypted,approval_pin_hash) VALUES (?,?,?,?,?,?)',
+        [email,name,passwordHash,roles[0].id,totpCipher,approvalHash]
       );
       if(role==='agent'){
         await conn.query("INSERT INTO warehouses(name,kind,agent_user_id) VALUES (?,'AGENT',?)",

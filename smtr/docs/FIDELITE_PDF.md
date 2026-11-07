@@ -1,22 +1,24 @@
-# SMTR — Correspondance écrans du catalogue PDF
+# SMTR — Correspondance avec le catalogue PDF
 
-**Source du design (autorité unique) :** `SMTR Sinocet Catalogue Maquettes.pdf` — catalogue v3.1 / CDC-SINOCET-2026-001. Ce document appartient au commanditaire ; il n'est pas dupliqué publiquement.
+Référence de conception : **SMTR Sinocet Catalogue Maquettes.pdf**, CDC-SINOCET-2026-001, v3.1. Les données de démonstration du document ne sont pas insérées dans l’application.
 
-| Page PDF | Maquette / comportement | Implémentation |
+| Pages | Écrans | Implémentation |
 |---|---|---|
-| 4 | Agent mobile-first, grands points tactiles, réception, vente, crédits, caisse | Navigation mobile basse conservée. Les opérations non codées restent inactives |
-| 8 | Utilisateurs & rôles, Direction / Manager / Agent, double authentification DG | Rôles SQL et contrôles API ; 2FA TOTP obligatoire pour Direction |
-| 9 | Sécurité, traces d’opération horodatées | Journal des créations produits, entrées de stock, envois, réceptions, écarts ; encore à étendre aux autres modules |
-| 11 | **Stock Central**, catégorie, quantité, seuil, emplacement, statut, « Réceptionner un lot », note « Ramba » | `StockCentral` : tableau avec catégories réelles, entrée du lot IMEI par IMEI ; Ramba bloqué comme catégorie fournisseur |
-| 12 | **Nouveau transfert — Central → Agent** : destinataire, scan/recherche IMEI, choix, résumé, « Envoyer le transfert », passage à « En Transit » | `ManagerTransfers` : choix réel des articles et de l'agent, transaction serveur et état IN_TRANSIT |
-| 15 | Tableau de bord Agent : accès rapides et indicateurs personnels uniquement | Indicateurs réels de stock et transferts en attente, sans inventer les ventes/crédits encore non implémentés |
-| 17 | **Valider une réception** : IMEI attendus, cases vérifiées, « Valider la réception » et « Signaler un écart », engagement financier | `AgentReception` : bloc des IMEI attendus, vérification obligatoire, validation atomique ou signalement avec gel du stock |
-| 21 | Entrepôt virtuel « Ramba » : non vendable, pas catégorie d'achat | Champ `items.state` inclut `SAV` ; aucune vente d'article non disponible ; workflow SAV reste à développer |
+| 6, 10, 15 | Tableaux de bord Direction, Manager, Agent | `DashboardPage.tsx` ; données consolidées ou personnelles, marges réservées à la Direction |
+| 7 | Cartographie des stocks | `SupervisionPage.tsx` ; entrepôts, disponibilité, transit, gel, SAV et détail IMEI masqué |
+| 8 | Utilisateurs & rôles | `AdminPage.tsx` ; quatrième rôle Administrateur ajouté à la demande utilisateur ; création des comptes et gestion des droits côté API |
+| 9 | Sécurité & audit | `AuditPage.tsx`, `AdminPage.tsx` ; TOTP Direction/Administrateur, journal métier et journal technique, protection SQL contre modification/suppression |
+| 11 | Stock Central | `Operations.tsx` ; catégories, seuils, emplacement, réception de lots et import Excel ; Ramba exclu des achats fournisseurs |
+| 12 | Transferts Central → Agent | `Operations.tsx` ; réservation transactionnelle, sélection et état IN_TRANSIT |
+| 13 | Inventaire tournant | `InventoryPage.tsx` ; gel ciblé, comptage, écarts et rapprochement physique avant dégel |
+| 14 | Validations sensibles | `ApprovalsPage.tsx` ; demandes et décisions de remise, annulation ou résolution SAV avec code Manager |
+| 16 | Point de vente | `SalesPage.tsx`, `ImeiScanner.tsx` ; recherche/scan, prix sans coût d’achat, comptant/crédit/partiel et reçu PDF |
+| 17 | Validation de réception Agent | `Operations.tsx` ; vérification complète, engagement atomique ou écart avec HOLD |
+| 18, 22 | Crédits personnels/consolidés | `DebtsPage.tsx` ; échéances, plafonds, remboursements, rappels SMS/WhatsApp et reçus |
+| 19 | Caisse quotidienne | `CashPage.tsx` ; répartition par mode, attendu/déclaré, clôture horodatée et historique |
+| 20, 21 | SAV et Ramba | `SavPage.tsx` ; défaut usine, entrepôt isolé, réparation/échange/remboursement approuvés et remise en stock vérifiée |
+| 23 | Rapports & exports | `ReportsPage.tsx` ; PDF/Excel, période, filtre agent, ventes, dettes, écarts et SAV mensuel |
 
-## Couleurs et structure
+La structure marine, fond clair, cartes blanches, actions bleues et badges de statut reprend le catalogue. Le formulaire de connexion est conservé et complété par le TOTP : le PDF n’impose pas de maquette de connexion. Les écrans techniques de permissions/menus/paramètres prolongent ces composants pour le rôle Administrateur demandé.
 
-Les écrans d'exploitation utilisent le bleu d'action, l'en-tête et la barre latérale bleu marine, le fond gris pâle, les cartes blanches, les séparations de tableau et les badges vert/orange/rouge illustrés dans les pages 11–12–17. Il s'agit de **retranscrire les maquettes, pas de proposer une autre identité visuelle**.
-
-Le PDF **ne présente pas de maquette précise de l'écran d'authentification** : le formulaire de connexion de la fondation initiale est donc conservé et seulement étendu avec un champ OTP. Son adaptation visuelle définitive dépendra d'une maquette approuvée ; aucune nouvelle direction artistique n'a été inventée ici.
-
-Les noms ou chiffres figurant dans les maquettes sont **illustratifs**, et ne sont **jamais utilisés pour créer des articles, mouvements, ventes, comptes ou entrepôts réels**.
+Le mode hors ligne reste partiel : brouillons de ventes, aucune validation ou réservation locale. Les actions sensibles nécessitent l’API et les droits serveur. La caméra dépend du navigateur ; la recherche/saisie IMEI reste disponible.

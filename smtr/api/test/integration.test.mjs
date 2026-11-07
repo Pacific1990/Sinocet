@@ -12,6 +12,9 @@ const PASSWORD='SuperSecurePassword-2026!';
 let pool,app,users,warehouses,items,secret;
 
 before(async()=>{
+  if(!/_test$|_qa$/.test(process.env.DB_NAME||'')){
+    throw new Error('Destructive integration tests are restricted to a dedicated _test or _qa database');
+  }
   process.env.SMTR_TOTP_ENCRYPTION_KEY ||= '0'.repeat(64);
   pool=createPoolFromEnv();
   app=makeApp(pool);
@@ -19,8 +22,21 @@ before(async()=>{
 });
 after(async()=>{if(pool)await pool.end();});
 beforeEach(async()=>{
-  for(const table of ['logs','transfers_items','transfers','items','products','warehouses','sessions','users']){
-    await pool.query('DELETE FROM '+table);
+  // Each independent fixture gets a fresh rate-limit store; production remains limited.
+  app=makeApp(pool);
+  // This test database has no production data. Audit logs reject DELETE by design;
+  // TRUNCATE is restricted to this isolated QA database and bypasses the trigger.
+  const conn=await pool.getConnection();
+  try{
+    await conn.query('SET FOREIGN_KEY_CHECKS=0');
+    for(const table of [
+      'logs','realtime_tickets','movements','payments','approvals','sav_cases',
+      'debts','cash_closures','inventories_lines','inventories','sales','transfers_items',
+      'transfers','items','products','customers','warehouses','sessions','users'
+    ]) await conn.query('TRUNCATE TABLE '+table);
+  }finally{
+    await conn.query('SET FOREIGN_KEY_CHECKS=1');
+    conn.release();
   }
   secret=newTotpSecret();
   const [roles]=await pool.query('SELECT id,code FROM roles');
@@ -183,4 +199,15 @@ test('Logout invalidates the bearer session server-side',async()=>{
   assert.equal((await request(app).get(base+'/auth/me').set(bearer(manager))).status,200);
   assert.equal((await request(app).post(base+'/auth/logout').set(bearer(manager))).status,204);
   assert.equal((await request(app).get(base+'/stocks').set(bearer(manager))).status,401);
+});
+
+
+test('Login IP rate limit remains active across repeated malformed requests',async()=>{
+  for(let i=0;i<20;i++){
+    const r=await request(app).post(base+'/auth/login').send({});
+    assert.equal(r.status,401);
+  }
+  const blocked=await request(app).post(base+'/auth/login').send({});
+  assert.equal(blocked.status,429);
+  assert.equal(blocked.body.code,'RATE_LIMITED');
 });

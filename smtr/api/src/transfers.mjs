@@ -237,5 +237,61 @@ export function transferRoutes(pool) {
       res.json({transfer:outcome});
     }catch(error){next(error);}
   });
+  router.post('/:id/resolve',requireRole('manager','director'),async(req,res,next)=>{
+    try{
+      const transferId=positiveId(req.params.id);
+      const verified=uniqueIds(req.body?.verifiedItemIds,{min:0,max:100});
+      const reason=typeof req.body?.reason==='string'?req.body.reason.trim():'';
+      assert(transferId&&verified!==null&&reason.length>=8&&reason.length<=500,422,
+        'Indiquez les IMEI physiquement revenus au Central et un motif de décision.');
+      const outcome=await transaction(pool,async conn=>{
+        const [transfers]=await conn.query(
+          'SELECT tr.id,tr.status,tr.source_warehouse_id,tr.target_warehouse_id '+
+          'FROM transfers tr WHERE tr.id=? FOR UPDATE',[transferId]
+        );
+        const tr=transfers[0];
+        assert(tr&&tr.status==='DISCREPANCY',409,'Aucun écart actif à réconcilier pour ce transfert.');
+        const [related]=await conn.query(
+          'SELECT ti.item_id FROM transfers_items ti WHERE ti.transfer_id=? ORDER BY ti.item_id FOR UPDATE',
+          [transferId]
+        );
+        const expected=related.map(row=>String(row.item_id));
+        assert(expected.length>0&&verified.every(id=>expected.includes(id)),422,
+          'IMEI non contenu dans ce transfert.');
+        const [stock]=await conn.query(
+          'SELECT id,warehouse_id,state FROM items WHERE id IN ('+
+          expected.map(()=>'?').join(',')+') ORDER BY id FOR UPDATE',expected
+        );
+        assert(stock.length===expected.length&&stock.every(item=>
+          item.state==='HOLD'&&String(item.warehouse_id)===String(tr.source_warehouse_id)
+        ),409,'Un ou plusieurs articles ne sont plus en quarantaine au Central.');
+        if(verified.length){
+          const [updated]=await conn.query(
+            "UPDATE items SET state='AVAILABLE' WHERE id IN ("+
+            verified.map(()=>'?').join(',')+") AND warehouse_id=? AND state='HOLD'",
+            [...verified,tr.source_warehouse_id]
+          );
+          assert(updated.affectedRows===verified.length,409,'Restitution incomplète.');
+          for(const id of verified){
+            await conn.query(
+              'INSERT INTO movements(item_id,actor_user_id,kind,origin_warehouse_id,destination_warehouse_id,reference_type,reference_id) VALUES(?,?,?,?,?,?,?)',
+              [id,req.auth.id,'TRANSFER_RETURNED',tr.target_warehouse_id,tr.source_warehouse_id,'TRANSFER',transferId]
+            );
+          }
+        }
+        const missing=expected.filter(id=>!verified.includes(id));
+        const status=missing.length?'CLOSED_WITH_DISCREPANCY':'RETURNED';
+        await conn.query('UPDATE transfers SET status=?,discrepancy_reason=? WHERE id=?',
+          [status,reason,transferId]);
+        await log(conn,req.auth.id,'TRANSFER_RECONCILED',transferId,{
+          verifiedReturnedItemIds:verified,missingItemIds:missing,
+          reason,status,missingRemainOnHold:true,
+        });
+        return {id:transferId,status,returnedCount:verified.length,missingCount:missing.length};
+      });
+      res.json({transfer:outcome});
+    }catch(error){next(error);}
+  });
+
   return router;
 }

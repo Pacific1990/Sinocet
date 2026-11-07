@@ -8,6 +8,8 @@ import {
   type StockCategory, type StockItem, type StockProduct, type TransferRecord,
 } from './api';
 import type { ModuleId, Role } from './permissions';
+import { displayError, get, post } from './services';
+import ImeiScanner from './ImeiScanner';
 
 type Props = {
   screen: 'stocks' | 'transfers';
@@ -66,6 +68,48 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
   const [imeisText,setImeisText]=useState('');
   const [location,setLocation]=useState('');
   const [sending,setSending]=useState(false);
+  const inputRef=useRef<HTMLInputElement|null>(null);
+  const [importing,setImporting]=useState(false);
+  const [showProduct,setShowProduct]=useState(false);
+  const [productName,setProductName]=useState('');
+  const [productCategory,setProductCategory]=useState('');
+  const [sku,setSku]=useState('');
+  const [minimumLevel,setMinimumLevel]=useState('');
+
+  async function importExcel(file:File){
+    if(!token||importing||!warehouseId)return;
+    if(!/\.xlsx$/i.test(file.name)||file.size>2*1024*1024){
+      setError('Sélectionnez un fichier .xlsx de moins de 2 Mo.');return;
+    }
+    if(!window.confirm('Importer ce lot Excel dans le stock central sélectionné ?')){
+      if(inputRef.current)inputRef.current.value='';return;
+    }
+    setImporting(true);setError('');setNotice('');
+    try{
+      const form=new FormData();form.set('warehouseId',warehouseId);form.set('file',file);
+      const base=(import.meta.env.VITE_SMTR_API_BASE_URL||'/smtr/api/v1').replace(/\/+$/,'');
+      const response=await fetch(base+'/stocks/import',{
+        method:'POST',headers:{Authorization:'Bearer '+token},body:form,credentials:'omit',cache:'no-store',
+      });
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.message||'Import Excel impossible.');
+      setNotice(data.import.quantity+' IMEI importés. '+data.import.skuCount+' référence(s) concernée(s).');
+      setReload(x=>x+1);
+    }catch(e){setError(displayError(e,onLogout));}
+    finally{setImporting(false);if(inputRef.current)inputRef.current.value='';}
+  }
+  async function createProduct(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();if(!token||sending)return;
+    setSending(true);setError('');setNotice('');
+    try{
+      await post('/stocks/products',token,{
+        name:productName,category:productCategory,sku,minimumLevel:Number(minimumLevel||0),
+      });
+      setNotice('Référence produit enregistrée.');
+      setProductName('');setProductCategory('');setSku('');setMinimumLevel('');
+      setShowProduct(false);setReload(x=>x+1);
+    }catch(e){setError(displayError(e,onLogout));}finally{setSending(false);}
+  }
 
   useEffect(()=>{
     if (!token) return;
@@ -104,13 +148,34 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
         <div><h2>Stock Central{warehouses.length===1?' — '+warehouses[0].name:''}</h2>
           <p>Consultation et réception des arrivages fournisseurs</p></div>
         <div className="ref-actions">
-          <button type="button" className="ref-button ref-button--outline" disabled title="Import Excel non disponible dans ce lot">Importer Excel</button>
+          <button type="button" className="ref-button ref-button--outline"
+            disabled={preview||importing||!warehouseId} onClick={()=>inputRef.current?.click()}>
+            {importing?'Import en cours…':'Importer Excel'}
+          </button>
+          <input type="file" ref={inputRef} style={{display:'none'}} accept=".xlsx" aria-label="Choisir un fichier Excel"
+            onChange={e=>{const file=e.target.files?.[0];if(file)void importExcel(file);}}/>
+          <button type="button" className="ref-button ref-button--outline" disabled={preview}
+            onClick={()=>setShowProduct(v=>!v)}>+ Référence produit</button>
           <button type="button" className="ref-button ref-button--blue" disabled={preview}
             onClick={()=>{setShowReception(x=>!x);setNotice('');}}>+ Réceptionner un lot</button>
         </div>
       </div>
       {notice&&<Notice message={notice} tone="success"/>}
       {error&&<Notice message={error} tone="error"/>}
+      <p className="catalog-note">Import Excel : colonnes SKU, IMEI (texte) et EMPLACEMENT (facultative). 500 lignes et 2 Mo maximum.</p>
+      {showProduct&&!preview&&<form className="ref-form ref-reception" onSubmit={createProduct}>
+        <h3>Nouvelle référence produit</h3>
+        <div className="ref-fields">
+          <label>Nom du produit<input required minLength={2} maxLength={180} value={productName} onChange={e=>setProductName(e.target.value)}/></label>
+          <label>Catégorie<input required minLength={2} maxLength={120} value={productCategory} onChange={e=>setProductCategory(e.target.value)}/></label>
+          <label>SKU (référence unique)<input required minLength={2} maxLength={80} value={sku} onChange={e=>setSku(e.target.value)}/></label>
+          <label>Seuil mini<input required type="number" min={0} max={100000} value={minimumLevel} onChange={e=>setMinimumLevel(e.target.value)}/></label>
+        </div>
+        <div className="ref-form-actions">
+          <button className="ref-button ref-button--outline" type="button" onClick={()=>setShowProduct(false)}>Annuler</button>
+          <button className="ref-button ref-button--blue" type="submit" disabled={sending}>Enregistrer la référence</button>
+        </div>
+      </form>}
       {showReception&&!preview&&<form className="ref-form ref-reception" onSubmit={saveLot}>
         <h3>Réceptionner un lot — stock central</h3>
         <div className="ref-fields">
@@ -194,6 +259,35 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
   const [notice,setNotice]=useState('');
   const [reload,setReload]=useState(0);
   const requestId=useRef(crypto.randomUUID());
+  const [reconcileId,setReconcileId]=useState('');
+  const [reconcileItems,setReconcileItems]=useState<Array<{id:string;imeiMasked:string;productName:string}>>([]);
+  const [returned,setReturned]=useState<string[]>([]);
+  const [reconcileReason,setReconcileReason]=useState('');
+
+  async function openReconciliation(id:string){
+    if(!token)return;
+    setError('');setReturned([]);setReconcileItems([]);setReconcileId(id);setReconcileReason('');
+    try{
+      const result=await get<{transfer:{items:Array<{id:string;imeiMasked:string;productName:string}>}}>('/transfers/'+id,token);
+      setReconcileItems(result.transfer.items);
+    }catch(e){setError(getError(e,onLogout));}
+  }
+  async function reconcile(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();if(!token||sending||!reconcileId)return;
+    if(!window.confirm('Confirmez-vous avoir revérifié physiquement ces IMEI au Central ? Les appareils manquants resteront gelés.'))return;
+    setSending(true);setError('');setNotice('');
+    try{
+      const result=await post<{transfer:{id:string;status:string;returnedCount:number;missingCount:number}}>(
+        '/transfers/'+reconcileId+'/resolve',token,
+        {verifiedItemIds:returned,reason:reconcileReason}
+      );
+      setNotice('Écart traité : '+result.transfer.returnedCount+' IMEI vérifiés retournés au Central, '+
+        result.transfer.missingCount+' manquant(s) maintenus en HOLD.');
+      setReconcileId('');setReturned([]);setReconcileItems([]);setReconcileReason('');
+      setReload(x=>x+1);
+    }catch(e){setError(getError(e,onLogout));}
+    finally{setSending(false);}
+  }
 
   useEffect(()=>{
     if(!token)return;
@@ -265,6 +359,9 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
             </span>
           </label>
         </div>
+        <div className="catalog-actions" style={{marginBottom:14}}>
+          <ImeiScanner onScan={setQuery} disabled={preview||sending}/>
+        </div>
         {loading||loadingItems?<Loading/>:
           !items.length?<RefEmpty message="Aucun IMEI disponible dans ce stock central."/>:
           <div className="ref-table-scroll"><table className="ref-table ref-table--selection">
@@ -293,14 +390,46 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
     <section className="ref-panel ref-history"><h2>Transferts en cours</h2>
       {!transfers.length?<RefEmpty message="Aucun transfert enregistré."/>:
       <div className="ref-table-scroll"><table className="ref-table"><thead><tr>
-        <th>N°</th><th>DESTINATAIRE</th><th>QUANTITÉ</th><th>INITIÉ LE</th><th>STATUT</th>
+        <th>N°</th><th>DESTINATAIRE</th><th>QUANTITÉ</th><th>INITIÉ LE</th><th>STATUT</th><th>ACTION</th>
       </tr></thead><tbody>{transfers.map(tr=><tr key={tr.id}><td>#{tr.id}</td>
         <td>{tr.agentName}</td><td>{tr.quantity}</td><td>{dateOf(tr.sentAt)}</td>
         <td><span className={'ref-status '+(tr.status==='RECEIVED'?'ref-status--green':'ref-status--orange')}>
           {tr.status==='IN_TRANSIT'?'En transit':tr.status==='RECEIVED'?'Reçu':'Écart signalé'}
         </span></td>
+        <td>{tr.status==='DISCREPANCY'?
+          <button type="button" className="ref-button ref-button--outline"
+            onClick={()=>{void openReconciliation(tr.id);}}>Réconcilier</button>:
+          '—'}</td>
       </tr>)}</tbody></table></div>}
     </section>
+    {reconcileId&&<section className="ref-panel" style={{marginTop:16}}>
+      <div className="ref-panel-head">
+        <div><h2>Réconciliation transfert #{reconcileId}</h2>
+          <p>Retour physique au Central après signalement de l’Agent</p>
+        </div>
+      </div>
+      <div className="catalog-warning-box">
+        Cochez uniquement les IMEI physiquement revérifiés au Central. Les autres IMEI resteront gelés et feront l’objet d’une enquête.
+      </div>
+      <form className="catalog-form" onSubmit={reconcile}>
+        <div className="catalog-inline-list">
+          {reconcileItems.map(item=><label className="catalog-row" key={item.id}>
+            <span><strong>{item.productName}</strong><br/><small>IMEI {item.imeiMasked}</small></span>
+            <input type="checkbox" checked={returned.includes(item.id)}
+              onChange={()=>setReturned(v=>v.includes(item.id)?v.filter(x=>x!==item.id):[...v,item.id])}/>
+          </label>)}
+        </div>
+        <label className="catalog-field">Constat et décision du Manager
+          <textarea required minLength={8} maxLength={500} rows={3}
+            value={reconcileReason} onChange={e=>setReconcileReason(e.target.value)}/>
+        </label>
+        <div className="catalog-actions">
+          <button className="ref-button ref-button--outline" type="button" onClick={()=>setReconcileId('')}>Annuler</button>
+          <button className="ref-button ref-button--blue" type="submit" disabled={sending||reconcileReason.length<8}>
+            Enregistrer la réconciliation</button>
+        </div>
+      </form>
+    </section>}
   </div>;
 }
 

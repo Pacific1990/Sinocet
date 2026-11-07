@@ -1,33 +1,30 @@
-export type Role = 'director' | 'manager' | 'agent';
-export type ModuleId =
-  | 'dashboard' | 'stocks' | 'transfers' | 'sales' | 'debts'
-  | 'cases' | 'cash' | 'inventory' | 'approvals' | 'reports'
-  | 'users' | 'audit';
+export type Role = 'admin'|'director'|'manager'|'agent';
 
-const NAV_PERMISSIONS: Record<Role, readonly ModuleId[]> = {
-  director: [
-    'dashboard', 'stocks', 'transfers', 'sales', 'debts',
-    'cases', 'cash', 'inventory', 'approvals', 'reports', 'users', 'audit',
-  ],
-  manager: [
-    'dashboard', 'stocks', 'transfers', 'sales', 'debts',
-    'cases', 'cash', 'inventory', 'approvals', 'reports',
-  ],
-  agent: ['dashboard', 'sales', 'stocks', 'transfers', 'debts', 'cash', 'cases'],
+export const MODULE_IDS = [
+  'system','users','permissions','menus','settings','system_audit',
+  'dashboard','stocks','transfers','sales','debts','cases','cash',
+  'inventory','approvals','reports','supervision','business_settings','audit',
+] as const;
+export type ModuleId = typeof MODULE_IDS[number];
+
+const PREVIEW_NAV: Record<Role, readonly ModuleId[]> = {
+  admin:['system','users','permissions','menus','settings','system_audit'],
+  director:['dashboard','stocks','transfers','sales','debts','cases','cash',
+    'inventory','approvals','reports','supervision','business_settings','audit'],
+  manager:['dashboard','stocks','transfers','sales','debts','cases','cash',
+    'inventory','approvals','reports','supervision','business_settings','audit'],
+  agent:['dashboard','sales','stocks','transfers','debts','cash','cases','approvals'],
 };
 
-export function canView(role: Role, module: ModuleId): boolean {
-  return NAV_PERMISSIONS[role].includes(module);
+export function canView(role:Role,module:ModuleId):boolean {
+  return PREVIEW_NAV[role].includes(module);
 }
-export function roleModules(role: Role): readonly ModuleId[] {
-  return NAV_PERMISSIONS[role];
+export function roleModules(role:Role):readonly ModuleId[] {
+  return PREVIEW_NAV[role];
 }
-export function isRole(value: unknown): value is Role {
-  return value === 'director' || value === 'manager' || value === 'agent';
+export function isRole(value:unknown):value is Role {
+  return value==='admin'||value==='director'||value==='manager'||value==='agent';
 }
-export function isModule(value: unknown): value is ModuleId {
-  return [
-    'dashboard', 'stocks', 'transfers', 'sales', 'debts',
-    'cases', 'cash', 'inventory', 'approvals', 'reports', 'users', 'audit',
-  ].includes(String(value));
+export function isModule(value:unknown):value is ModuleId {
+  return typeof value==='string'&&MODULE_IDS.includes(value as ModuleId);
 }
