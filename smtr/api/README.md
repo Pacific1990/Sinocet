@@ -1,66 +1,80 @@
-# API SMTR — Authentification, stocks IMEI et transferts
+# API SMTR
 
-> Implémentation initiale, **pas un serveur de production certifié**. Node.js 22+, MySQL 8.0+, environnement HTTPS et base dédiée.
+Node.js 22+, MySQL 8, Express. Copier `.env.example` vers `.env`, renseigner la base et la clé `SMTR_TOTP_ENCRYPTION_KEY` (64 caractères hexadécimaux), puis `npm ci`, `npm run migrate` et `npm start`. Port par défaut : 4010.
 
-## Installation
+## Comptes initiaux et entrepôts
 
-`npm install`, renseigner `.env` depuis `.env.example`, puis `npm run migrate` (schéma `sql/001_core.sql`). `npm run start` écoute sur `SMTR_PORT` (4010).
+`scripts/provision.mjs` utilise des variables d’environnement temporaires dans un terminal privé. Ne versionner aucun mot de passe, PIN ou secret TOTP.
 
-**Aucune donnée métier ni identité n'est semée automatiquement.** Les seules lignes automatiques sont les rôles statiques `director`, `manager` et `agent`.
+- `SMTR_PROVISION_ACTION=warehouse`, `SMTR_WAREHOUSE_KIND=CENTRAL` ou `SAV`, `SMTR_WAREHOUSE_NAME`, éventuellement `SMTR_WAREHOUSE_LOCATION`.
+- `SMTR_PROVISION_ACTION=user`, `SMTR_USER_ROLE=admin|director|manager|agent`, `SMTR_USER_NAME`, `SMTR_USER_EMAIL`, `SMTR_USER_PASSWORD` (12 caractères minimum).
+- Agent : ajouter `SMTR_AGENT_WAREHOUSE_NAME` pour créer son stock dédié.
+- Manager : ajouter un code privé de six chiffres dans `SMTR_MANAGER_APPROVAL_CODE`.
+- Direction/Administrateur : le script imprime une fois l’URI OTPAuth à enrôler avant connexion. Le secret est chiffré en base ; ne pas envoyer cet URI à un service tiers.
 
-### Préparer les identités
+L’Administrateur peut ensuite créer les Managers/Agents et gérer les comptes, les permissions, les menus et les paramètres techniques. L’enrôlement des comptes Direction/Administrateur reste réservé au terminal privé. Les migrations créent seulement le schéma et les référentiels de rôles, permissions, menus et paramètres ; aucune activité fictive.
 
-L'outil `scripts/provision.mjs` est réservé à un terminal d'exploitation **privé**. Utiliser des variables d'environnement locales temporaires (ne pas conserver les mots de passe dans l'historique shell ni dans un fichier versionné).
+## Contrat HTTP
 
-- `SMTR_PROVISION_ACTION=warehouse`, `SMTR_WAREHOUSE_KIND=CENTRAL` et `SMTR_WAREHOUSE_NAME=<nom réel du dépôt>` puis `node scripts/provision.mjs` : crée un dépôt central réel.
-- `SMTR_PROVISION_ACTION=user`, `SMTR_USER_ROLE=manager`, `SMTR_USER_NAME`, `SMTR_USER_EMAIL`, `SMTR_USER_PASSWORD` (12 caractères minimum), puis `node scripts/provision.mjs` : crée un manager.
-- `SMTR_USER_ROLE=agent` nécessite en plus `SMTR_AGENT_WAREHOUSE_NAME=<nom réel du stock agent>`. L'outil crée une réserve agent dédiée.
-- `SMTR_USER_ROLE=director` crée un secret TOTP chiffré AES-256-GCM et imprime **une seule fois** un URI OTPAuth permettant son enrôlement dans une application d'authentification ; le conserver confidentiel.
+Préfixe `/smtr/api/v1`. Les routes privées exigent `Authorization: Bearer <token>`. La session est opaque, hachée en base, limitée à huit heures et révocable. Les permissions sont relues sur chaque requête et complétées par les contrôles métier de rôle et de propriétaire.
 
-Avant tout usage réel : sécuriser les postes administrateurs, la configuration DB et les procédures de récupération des facteurs TOTP.
+| Méthode | Route | Usage |
+|---|---|---|
+| GET | `/health` | Santé MySQL |
+| POST | `/auth/login` | Email, mot de passe et `otp` si nécessaire |
+| GET / POST | `/auth/me`, `/auth/logout`, `/auth/change-password` | Profil, révocation, mot de passe |
+| GET | `/access/me` | Permissions et menus effectifs |
+| GET | `/dashboard/summary`, `/dashboard/overview` | Indicateurs selon le rôle |
+| GET | `/stocks`, `/stocks/products`, `/stocks/agents`, `/stocks/central-warehouses`, `/stocks/items` | Stock autorisé, catalogues et recherche |
+| POST | `/stocks/products`, `/stocks/receipts`, `/stocks/import` | Références, lots IMEI, Excel multipart `file` |
+| GET / POST | `/transfers` | Historique / envoi idempotent avec `requestId` UUID |
+| GET | `/transfers/pending`, `/transfers/:id` | Réceptions attendues / détail autorisé |
+| POST | `/transfers/:id/receive`, `/transfers/:id/discrepancy`, `/transfers/:id/resolve` | Réception complète, écart, retour physique vérifié |
+| GET / POST | `/sales` | Historique / vente Agent avec clé `requestId` |
+| GET | `/sales/stock`, `/sales/:id/receipt` | Articles vendables de l’Agent / reçu PDF autorisé |
+| GET / POST | `/customers` | Clients du périmètre / création |
+| PATCH | `/customers/:id/limit` | Plafond client autorisé |
+| GET | `/debts`, `/debts/:id/reminder` | Dettes et rappel prérempli |
+| POST | `/debts/:id/payments` | Remboursement idempotent |
+| GET | `/payments/:id/receipt` | Reçu de paiement PDF |
+| GET / POST | `/cash/today`, `/cash/history`, `/cash/close` | Situation, historique et clôture unique journalière |
+| GET / POST | `/approvals`, `/approvals/mine` | File Manager, demandes Agent et ses décisions |
+| POST | `/approvals/:id/decision`, `/approvals/sales/:id/cancel` | Code Manager, approbation et retour physique |
+| GET / POST | `/inventories`, `/inventories/agents`, `/inventories/start` | Inventaires et gel ciblé |
+| GET / POST | `/inventories/:id`, `/inventories/:id/close` | Comptage et clôture |
+| POST | `/inventories/:id/reconcile`, `/inventories/warehouses/:id/freeze` | Rapprochement IMEI et gel/dégel contrôlé |
+| GET / POST | `/cases` | Dossiers du périmètre / retour Agent pour défaut usine |
+| GET | `/cases/warehouse` | Ramba isolé non vendable |
+| POST | `/cases/:id/start`, `/cases/:id/resolve`, `/cases/:id/release` | Traitement, décision approuvée, remise en stock après vérification |
+| GET | `/reports`, `/reports/:kind?format=pdf|xlsx&from=YYYY-MM-DD&to=YYYY-MM-DD&agentId=…` | `sales`, `stock_variance`, `sav_monthly`, `debts` |
+| GET / POST / PATCH | `/users`, `/users/:id`, `/users/:id/approval-code` | Comptes et code Manager, Administrateur uniquement |
+| GET / PATCH | `/finance/agents`, `/finance/agents/:id/limit` | Plafonds agents, Direction uniquement |
+| GET / PATCH | `/settings`, `/settings/products/:id` | Lecture produits ; tarification réservée Direction |
+| GET | `/supervision`, `/supervision/:id/items`, `/audit/events` | Supervision et journal métier |
+| GET / PUT | `/system/roles`, `/system/permissions`, `/system/roles/:role/permissions` | Matrice des permissions |
+| GET / PUT | `/system/menus`, `/system/roles/:role/menus` | Visibilité et ordre des menus |
+| GET / PUT | `/system/settings`, `/system/settings/:key` | Paramètres techniques non secrets |
+| GET | `/system/overview`, `/system/audit` | Tableau de bord et journal techniques |
+| POST | `/events/ticket` | Ticket WebSocket à usage unique, validité 45 s |
 
-## HTTP sous /smtr/api/v1
+WebSocket `/smtr/ws?ticket=…` : origine autorisée et ticket consommé à l’ouverture. Événements `connected` et `refresh`, sans données financières. Le client relit ensuite les ressources via l’API autorisée.
 
-Toutes les réponses sont JSON ; chaque route métier exige `Authorization: Bearer <token>`. Un jeton est aléatoire, stocké haché en MySQL, expirant après huit heures et révocable via déconnexion. L'écran d'accueil ne mémorise pas le jeton dans le navigateur.
+## Invariants
 
-| Méthode | Route | Rôle | Action |
-|---|---|---|---|
-| POST | `/auth/login` | Public avec identifiants | Email + mot de passe + `otp` si 2FA |
-| GET / POST | `/auth/me` / `/auth/logout` | Authentifié | Profil restreint / révocation |
-| GET | `/dashboard/summary` | Tous | Indicateurs calculés uniquement sur données existantes |
-| GET | `/stocks` | Tous | Agent : son stock ; Manager/Direction : central |
-| GET | `/stocks/central-warehouses` | Manager/Direction | Dépôts réellement enregistrés |
-| GET | `/stocks/agents` | Manager/Direction | Agents actifs et réserves attribuées |
-| GET | `/stocks/products` | Manager/Direction | Références produits |
-| POST | `/stocks/products` | Manager/Direction | Créer une référence ; interdit la catégorie « Ramba » |
-| GET | `/stocks/items?warehouseId=<id>&q=<terme>` | Manager/Direction | Recherche limitée aux IMEI disponibles au central ; IMEI masqués |
-| POST | `/stocks/receipts` | Manager/Direction | Entrée d'un lot par IMEI, transactionnelle et anti-doublon |
-| GET | `/transfers` | Tous | Manager/Direction : tous ; agent : uniquement les siens |
-| GET | `/transfers/pending` | Agent | Transferts entrants à vérifier |
-| GET | `/transfers/:id` | Tous selon droits | Détail masqué |
-| POST | `/transfers` | Manager/Direction | Envoyer un lot vers un agent (clé idempotente `requestId` UUID) |
-| POST | `/transfers/:id/receive` | Agent destinataire | Vérifier chaque IMEI ; passage au stock agent atomique |
-| POST | `/transfers/:id/discrepancy` | Agent destinataire | Signalement : HOLD pour tous les articles en cause |
+- IMEI unique ; réservations transactionnelles et contrôles serveur sur chaque vente/réception.
+- Transit, gel et Ramba ne sont jamais vendables. L’écart nécessite un rapprochement physique avant libération.
+- Agent : son stock, ses clients, dettes et opérations ; aucun coût d’achat ni marge dans ses réponses.
+- Vente, remboursement et clôture se synchronisent sur le compte Agent ; une caisse clôturée refuse les nouvelles opérations du jour.
+- Plafonds client et Agent vérifiés en transaction ; l’Agent enregistre les paiements sans éditer le solde de dette.
+- `sales.item_id` conserve l’IMEI de la facture ; `items.current_sale_id` suit le propriétaire courant et les échanges SAV. Une ancienne vente ne peut ni annuler ni reprendre un appareil revendu.
+- Réparations, échanges et remboursements SAV nécessitent une décision approuvée. Une réparation résolue reste en HOLD jusqu’au contrôle physique de remise en stock.
+- Audit horodaté, acteur, IP et détails avant/après ; triggers SQL interdisant UPDATE/DELETE des traces.
+- Les exports Excel neutralisent les cellules interprétables comme formules ; les reçus PDF n’incluent aucun coût d’achat.
 
-### Invariants essentiels
+## Migrations et tests
 
-- `items.imei` est unique en base et l'entrée en stock refuse un IMEI qui existe déjà.
-- `items.state=AVAILABLE` seulement dans un entrepôt opérationnel. Les IMEI d'un transfert passent à `IN_TRANSIT` avant de quitter le central, puis à `AVAILABLE` **chez l'agent seulement après validation complète**.
-- Un article en transit ou placé en `HOLD` ne peut pas être transféré à nouveau.
-- L'agent n'a accès qu'aux mouvements qui lui sont destinés et à son propre stock.
-- Un transfert ne peut pas être réceptionné partiellement. Les écarts passent en `DISCREPANCY` et les articles en `HOLD` jusqu'à un retour vérifié par le Manager (résolution à coder).
-- Une requête de transfert rejouée avec la même clé et les mêmes articles ne crée pas de second mouvement.
-- Les traces d'audit `logs` sont alimentées côté serveur, sans stocker le texte complet des IMEI dans les réponses.
-- Le stock SAV/Ramba est **non vendable** et non référencé comme achat fournisseur.
+`npm run migrate` applique `001_core.sql` à `009_current_sale.sql` avec verrou MySQL et empreintes de chaque instruction. Relancer est autorisé ; modifier une instruction déjà appliquée est refusé. Les DDL MySQL ne sont pas transactionnelles : sauvegarder avant migration réelle et examiner toute interruption avant reprise.
 
-## Tests
+`npm run check` puis `npm test`. Les tests exigent une base isolée suffixée `_test` ou `_qa` et en effacent les données. Ne jamais utiliser le compte ni la base d’exploitation. La CI crée MySQL 8 et vérifie deux exécutions successives des migrations.
 
-`npm run check` contrôle la syntaxe. `npm run migrate` est idempotent. `npm test` exécute les tests TOTP, sécurité, rôles, concurrence, transfert et réception sur une **base MySQL de test isolée** préparée par la CI ; ne jamais lancer ces tests contre une base réelle (ils suppriment les données des tables de test au démarrage).
-
-## Points de déploiement à traiter
-
-- Reverse proxy HTTPS : `/smtr/` pour la SPA et `/smtr/api/v1` pour l'API ; définir correctement les chemins.
-- Droits SQL minimaux pour le compte runtime ; comptes DDL séparés. TLS MySQL/stockage chiffré/backup/restauration à configurer.
-- Habilitations en exploitation (directeur/manager/agent), gestion du renouvellement de sessions et procédure de récupération 2FA.
-- Revue de sécurité externe, monitoring, journal d'événements central et sauvegardes.
-- Résolution des écarts, ventes/caisses/dettes, intégration scan réel, synchronisation WebSocket et PWA hors ligne.
+Pour l’exploitation future : HTTPS, proxy `/smtr/api/v1` et `/smtr/ws`, `SMTR_ALLOWED_ORIGIN`, sauvegarde/restauration, secrets privés et comptes SQL aux droits adaptés. Aucun déploiement de production n’est inclus.

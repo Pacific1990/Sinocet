@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import multer from 'multer';
+import ExcelJS from 'exceljs';
 import { transaction } from './db.mjs';
 import { requireRole } from './auth.mjs';
 import { assert, HttpError, maskImei, positiveId } from './errors.mjs';
@@ -104,6 +106,92 @@ export function stockRoutes(pool) {
         id:String(row.id),imeiMasked:maskImei(row.imei),productName:row.productName,
         location:row.location_code||'—',
       }))});
+    }catch(error){next(error);}
+  });
+  // Import from the Excel template in the catalogue: SKU | IMEI | EMPLACEMENT.
+  // All rows are validated and committed together; duplicate IMEI cancels the lot.
+  const upload=multer({
+    storage:multer.memoryStorage(),limits:{fileSize:2*1024*1024,files:1},
+  });
+  router.post('/import',requireRole('manager','director'),upload.single('file'),async(req,res,next)=>{
+    try{
+      const warehouseId=positiveId(req.body?.warehouseId);
+      assert(warehouseId,422,'Sélectionnez le dépôt central.');
+      assert(req.file && /\.xlsx$/i.test(req.file.originalname) &&
+        req.file.buffer.length>0,422,'Classeur .xlsx requis.');
+      const workbook=new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer);
+      const sheet=workbook.worksheets[0];
+      assert(sheet&&sheet.rowCount>=2&&sheet.rowCount<=501,422,
+        'Classeur vide ou plus de 500 lignes.');
+      const header=sheet.getRow(1).values;
+      const byName=new Map();
+      for(let i=1;i<header.length;i++){
+        const key=String(header[i]??'').trim().normalize('NFD')
+          .replace(/[\u0300-\u036f]/g,'').toUpperCase();
+        byName.set(key,i);
+      }
+      const skuColumn=byName.get('SKU')||byName.get('REFERENCE');
+      const imeiColumn=byName.get('IMEI');
+      const locationColumn=byName.get('EMPLACEMENT')||byName.get('LOCATION');
+      assert(skuColumn&&imeiColumn,422,
+        'Colonnes obligatoires manquantes : SKU et IMEI.');
+      const rows=[];
+      const duplicates=new Set();
+      sheet.eachRow((row,index)=>{
+        if(index===1)return;
+        const sku=row.getCell(skuColumn).value;
+        const imei=row.getCell(imeiColumn).value;
+        const location=locationColumn?row.getCell(locationColumn).value:null;
+        if(!sku&&!imei)return;
+        rows.push({sku,imei,location});
+      });
+      assert(rows.length>=1&&rows.length<=500,422,'Classeur sans lignes d’articles.');
+      const clean=[];
+      for(const row of rows){
+        assert(typeof row.sku==='string'&&row.sku.trim().length>=2&&row.sku.trim().length<=80,
+          422,'SKU invalide ou manquant dans le fichier Excel.');
+        assert(typeof row.imei==='string'&&/^\d{15,16}$/.test(row.imei.trim()),422,
+          'IMEI incorrect : formatez la colonne Excel comme TEXTE pour conserver les chiffres.');
+        assert(row.location===null||typeof row.location==='string',422,
+          'Emplacement non textuel dans le classeur.');
+        const imei=row.imei.trim();
+        assert(!duplicates.has(imei),422,'IMEI en double dans le classeur.');
+        duplicates.add(imei);
+        clean.push({sku:row.sku.trim(),imei,
+          location:row.location?row.location.trim().slice(0,100):null});
+      }
+      const data=await transaction(pool,async conn=>{
+        const [warehouses]=await conn.query(
+          "SELECT id FROM warehouses WHERE id=? AND active=1 AND kind='CENTRAL' FOR UPDATE",
+          [warehouseId]
+        );
+        assert(warehouses.length===1,404,'Entrepôt Central introuvable.');
+        const skus=[...new Set(clean.map(row=>row.sku))];
+        const [products]=await conn.query(
+          'SELECT id,sku FROM products WHERE active=1 AND sku IN ('+
+          skus.map(()=>'?').join(',')+')',skus
+        );
+        const bySku=new Map(products.map(product=>[product.sku,product.id]));
+        assert(skus.every(sku=>bySku.has(sku)),422,
+          'Certaines références SKU n’existent pas dans les produits actifs.');
+        let count=0;
+        for(const row of clean){
+          const [insert]=await conn.query(
+            "INSERT INTO items(product_id,warehouse_id,imei,location_code,state) VALUES(?,?,?,?,'AVAILABLE')",
+            [bySku.get(row.sku),warehouseId,row.imei,row.location]
+          );
+          count++;
+        }
+        await conn.query(
+          'INSERT INTO logs(actor_user_id,action,entity_name,entity_id,details_json) VALUES(?,?,?,?,?)',
+          [req.auth.id,'STOCK_EXCEL_IMPORTED','warehouses',warehouseId,JSON.stringify({
+            quantity:count,skuCount:skus.length,
+          })]
+        );
+        return {quantity:count,skuCount:skus.length};
+      });
+      res.status(201).json({import:data});
     }catch(error){next(error);}
   });
   router.post('/receipts',requireRole('manager','director'),async(req,res,next)=>{

@@ -1,24 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { canView, isRole, roleModules } from './permissions';
+import { canView,isRole,isModule,roleModules } from './permissions';
 
-describe('SMTR role navigation — UI only, never server authorization', () => {
-  it('restricts the agent to operational modules', () => {
-    expect(canView('agent', 'sales')).toBe(true);
-    expect(canView('agent', 'transfers')).toBe(true);
-    expect(canView('agent', 'users')).toBe(false);
-    expect(canView('agent', 'audit')).toBe(false);
-    expect(canView('agent', 'approvals')).toBe(false);
+describe('SMTR preview role navigation — server access governs production',()=>{
+  it('adds an isolated administrator with system menus only',()=>{
+    expect(isRole('admin')).toBe(true);
+    expect(canView('admin','permissions')).toBe(true);
+    expect(canView('admin','menus')).toBe(true);
+    expect(canView('admin','sales')).toBe(false);
+    expect(canView('admin','business_settings')).toBe(false);
   });
-  it('offers manager validations but not identity administration', () => {
-    expect(canView('manager', 'approvals')).toBe(true);
-    expect(canView('manager', 'users')).toBe(false);
+  it('keeps business data away from technical administration',()=>{
+    expect(canView('director','business_settings')).toBe(true);
+    expect(canView('director','users')).toBe(false);
+    expect(canView('manager','inventory')).toBe(true);
+    expect(canView('manager','users')).toBe(false);
   });
-  it('exposes organization-wide navigation only to the director', () => {
-    expect(canView('director', 'audit')).toBe(true);
-    expect(canView('director', 'users')).toBe(true);
+  it('shows only field operations to an agent',()=>{
+    expect(canView('agent','sales')).toBe(true);
+    expect(canView('agent','approvals')).toBe(true);
+    expect(canView('agent','permissions')).toBe(false);
+    expect(canView('agent','reports')).toBe(false);
   });
-  it('rejects unknown roles and produces unique navigation items', () => {
-    expect(isRole('administrator')).toBe(false);
-    expect(roleModules('agent').length).toBe(new Set(roleModules('agent')).size);
+  it('rejects unknown roles and modules',()=>{
+    expect(isRole('super-admin')).toBe(false);
+    expect(isModule('tableau-de-bord')).toBe(false);
+    expect(roleModules('admin').length).toBe(new Set(roleModules('admin')).size);
   });
 });

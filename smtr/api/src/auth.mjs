@@ -1,4 +1,4 @@
-import argon2 from 'argon2';
+﻿import argon2 from 'argon2';
 import { createHash, randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
@@ -48,9 +48,9 @@ export function authentication(pool) {
         try { validPassword=await argon2.verify(user.password_hash,password); } catch { /* reject */ }
         let counter=null;
         let validTotp=true;
-        if(validPassword && (user.role==='director'||user.totp_secret_encrypted)) {
+        if(validPassword && (['director','admin'].includes(user.role)||user.totp_secret_encrypted)) {
           if(!user.totp_secret_encrypted) {
-            throw new HttpError(403,'La Direction doit activer la double authentification.','TOTP_NOT_CONFIGURED');
+            throw new HttpError(403,"La Direction et l'Administrateur doivent activer la double authentification.",'TOTP_NOT_CONFIGURED');
           }
           validTotp=false;
           if(typeof otp==='string') {
@@ -114,7 +114,31 @@ export function requireRole(...roles) {
 }
 export function sessionRoutes(pool) {
   const router=Router();
-  router.get('/me',(req,res)=>res.json({user:publicUser({...req.auth,two_factor_verified:req.auth.role==='director'})}));
+  router.get('/me',(req,res)=>res.json({user:publicUser({...req.auth,two_factor_verified:['director','admin'].includes(req.auth.role)})}));
+  router.post('/change-password',async(req,res,next)=>{
+    try {
+      const oldPassword=req.body?.currentPassword;
+      const newPassword=req.body?.newPassword;
+      if(typeof oldPassword!=='string'||typeof newPassword!=='string'||
+         newPassword.length<12||newPassword.length>1024||oldPassword.length>1024){
+        return next(new HttpError(422,'Mot de passe actuel et nouveau mot de passe fort requis.'));
+      }
+      const result=await transaction(pool,async conn=>{
+        const [users]=await conn.query('SELECT password_hash FROM users WHERE id=? FOR UPDATE',[req.auth.id]);
+        if(!users.length || !await argon2.verify(users[0].password_hash,oldPassword)){
+          return {denied:true};
+        }
+        const hashed=await argon2.hash(newPassword,{type:argon2.argon2id,memoryCost:65536,timeCost:3});
+        await conn.query('UPDATE users SET password_hash=? WHERE id=?',[hashed,req.auth.id]);
+        await conn.query('DELETE FROM sessions WHERE user_id=?',[req.auth.id]);
+        await conn.query('INSERT INTO logs(actor_user_id,action,entity_name,entity_id) VALUES(?,?,?,?)',
+          [req.auth.id,'PASSWORD_CHANGED','users',req.auth.id]);
+        return {denied:false};
+      });
+      if(result.denied) return next(new HttpError(401,'Mot de passe actuel incorrect.'));
+      res.status(204).end();
+    }catch(error){next(error);}
+  });
   router.post('/logout',async(req,res,next)=>{
     try{await pool.query('DELETE FROM sessions WHERE token_hash=?',[req.auth.tokenHash]);res.status(204).end();}
     catch(error){next(error);}

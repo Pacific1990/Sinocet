@@ -10,7 +10,12 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/smtr/api/v1': {
-        target: 'http://127.0.0.1:4010',
+        target: process.env.SMTR_DEV_API_TARGET || 'http://127.0.0.1:4010',
+        changeOrigin: false,
+      },
+      '/smtr/ws': {
+        target: (process.env.SMTR_DEV_API_TARGET || 'http://127.0.0.1:4010').replace(/^http/, 'ws'),
+        ws: true,
         changeOrigin: false,
       },
     },

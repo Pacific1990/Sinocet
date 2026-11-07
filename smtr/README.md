@@ -1,50 +1,41 @@
 # SMTR — Groupe Sinocet Electronics
 
-**Système de Management & Suivi en Temps Réel.** Implémentation en cours, à partir du document utilisateur **SMTR Sinocet Catalogue Maquettes.pdf, CDC-SINOCET-2026-001, v3.1**.
+Système de Management & Suivi en Temps Réel. Les écrans suivent le catalogue utilisateur **CDC-SINOCET-2026-001 v3.1** : Direction, Manager, Agent mobile-first et modules transverses. Voir [correspondance PDF](docs/FIDELITE_PDF.md), [API et exploitation locale](api/README.md) et [validation](docs/VALIDATION.md).
 
-## Interfaces fidèles aux maquettes
+## Fonctionnalités
 
-Les écrans opérationnels reprennent les intitulés, la hiérarchie des blocs et les couleurs du catalogue : **page 11 Stock Central**, **page 12 Nouveau transfert — Central → Agent**, **page 17 Valider une réception (Agent)**. Les maquettes du PDF sont la référence de conception. L'interface peut être consultée sur téléphone (navigation basse) ou ordinateur (navigation latérale).
+- Authentification Argon2id, sessions opaques révocables, limitation de connexion et TOTP obligatoire Direction/Administrateur.
+- Administrateur : comptes, permissions, menus par rôle, paramètres techniques et audit de configuration. Les droits sont relus sur chaque requête ; la révocation invalide les sessions concernées. Les accès techniques et commerciaux restent séparés côté serveur.
+- Direction : indicateurs consolidés, marge réelle, tarification, plafonds de crédit agents et supervision des stocks.
+- Manager : stock central, lots IMEI et import Excel, transferts, résolution physique des écarts, inventaires tournants, validations avec code privé, SAV/Ramba et rapports.
+- Agent : stock personnel, réception complète, ventes comptant/crédit/partielles, clients, remboursements, reçus PDF et clôture quotidienne de caisse.
+- SAV : défaut d’usine exclusivement, isolement non vendable, réparation avec remise en stock vérifiée, échange et remboursement approuvés. L’appareil actuellement associé à une vente est distingué de l’IMEI historique de sa facture.
+- Rapports PDF/Excel : ventes, Stock Initial vs Réel, SAV mensuel et dettes, avec filtres de période et d’agent.
+- Actualisation WebSocket par ticket à usage unique ; les événements contiennent une invalidation, pas de données commerciales.
+- PWA : cache du shell et brouillons de vente IndexedDB. Un brouillon hors ligne ne réserve aucun IMEI, ne génère aucun reçu et reste soumis aux validations serveur lors de sa soumission après reconnexion.
 
-Aucune donnée d'activité artificielle n'est insérée. L'aperçu visuel temporaire sans données n'existe que dans le serveur de développement (`?preview=agent`, `?preview=manager`, `?preview=director`) et n'active aucune transaction.
+## Développement
 
-## Développement local
+Prérequis : Node.js 22+, npm, MySQL 8. Créer une base dédiée puis renseigner `smtr/api/.env` à partir de `.env.example`. `SMTR_TOTP_ENCRYPTION_KEY` doit contenir 64 caractères hexadécimaux privés.
 
-Prérequis : Node.js 22+, MySQL 8+, npm. Démarrer depuis la racine de `smtr/` :
+Dans `smtr/api` : `npm ci`, `npm run migrate`, puis `npm run dev` (port 4010). Les migrations sont vérifiées et enregistrées instruction par instruction ; une migration appliquée ne doit pas être modifiée. Aucun compte, produit ou mouvement fictif n’est créé par ces migrations.
 
-### 1. API et MySQL
+Provisionner les comptes initiaux et les entrepôts CENTRAL/SAV avec `api/scripts/provision.mjs` dans un terminal privé. Les comptes Direction/Administrateur doivent enrôler leur TOTP avant connexion. Les Agents reçoivent un entrepôt personnel ; les Managers ont un code de validation à six chiffres.
 
-- Créer **une base vide** MySQL 8 et un utilisateur SQL dédié, avec les droits nécessaires uniquement à cette base.
-- `cd api` ; `npm install`
-- Copier `.env.example` → `.env` et renseigner `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` et `SMTR_TOTP_ENCRYPTION_KEY` (une clé privée aléatoire de **64 caractères hexadécimaux**, non stockée dans Git).
-- `npm run migrate` : crée les tables, les trois rôles de système, aucun compte utilisateur ni produit fictif.
-- Configurer un entrepôt réel et les comptes autorisés : voir [instructions API](api/README.md).
-- `npm run dev` : serveur API à `http://localhost:4010/smtr/api/v1` par défaut.
+Dans `smtr` : `npm ci`, `npm run dev`, puis ouvrir `http://localhost:5173/smtr/`. Pour une API de recette sur un autre port, définir `SMTR_DEV_API_TARGET` avant Vite. Les aperçus `?preview=agent`, `manager`, `director` ou `admin` sont limités au serveur de développement et n’activent aucune transaction.
 
-### 2. Frontend
+## Vérification
 
-Dans un second terminal, depuis `smtr/` :
+- Web : `npm test` puis `npm run build`.
+- API : `npm run check`, `npm run migrate` deux fois, puis `npm test`.
+- Les tests API détruisent leurs données de test et refusent une base dont le nom ne finit pas par `_qa` ou `_test`. Utiliser un utilisateur SQL dédié, jamais une base d’activité réelle.
 
-- `npm install` puis `npm run dev`.
-- Ouvrir `http://localhost:5173/smtr/`. Vite relaie les appels locaux `/smtr/api/v1` vers le serveur API.
-- `npm run test` et `npm run build` pour les contrôles frontend.
+## Sessions, données et limites hors ligne
 
-**Important :** les tokens d'accès restent en mémoire du navigateur, jamais dans `localStorage`. La session expire à la fermeture/au rechargement de la page (une nouvelle connexion est nécessaire). Les autorisations réelles sont appliquées dans l'API ; la navigation ne confère aucun privilège.
+Les jetons restent en mémoire ; ils ne sont pas stockés dans `localStorage`, IndexedDB ou le service worker. Un rechargement impose une nouvelle connexion en ligne. Les brouillons sont filtrés par compte et ne stockent ni mot de passe, ni jeton, ni nom client, ni téléphone, ni IMEI complet. Les paiements Mobile Money sont enregistrés après confirmation manuelle ; cette application ne déclenche pas de débit opérateur.
 
-## Périmètre fonctionnel déjà codé
+Le scanner caméra utilise `BarcodeDetector` lorsque le navigateur le prend en charge, avec saisie/recherche en secours. HTTPS est nécessaire pour la caméra hors localhost. Le cache hors ligne ne contient jamais de réponses API.
 
-- Authentification : mots de passe Argon2id, sessions opaques hachées en base et révocables, blocage temporaire après tentatives erronées, 2FA/TOTP pour la Direction.
-- Produits et exemplaires : réception manager au stock central, IMEI uniques au niveau SQL, contrôle de format et de collision, stock agent cloisonné.
-- Transfert Central → Agent : sélection d'IMEI disponibles, réservation transactionnelle, état **IN_TRANSIT** ; IMEI non vendables pendant le transport.
-- Réception agent : validation de **tous** les IMEI attendus avant mouvement vers son stock, strictement réservée à l'agent destinataire et protégée contre les doublons.
-- Écart : signalement avec liste des articles vérifiés, passage à **DISCREPANCY**, gel **HOLD** des exemplaires concernés, journal d'audit. Une résolution managériale et un retour physique vérifié restent à développer.
+## Livraison
 
-Les données brutes d'IMEI ne sont pas renvoyées à l'UI : seulement leurs derniers chiffres. L'agent ne voit pas les marges/prix d'achat et ne peut pas rechercher le stock central.
-
-## Ce qui reste non implémenté
-
-Ventes et factures, crédit, caisse, opérations SAV/Ramba complètes, inventaires tournants, exports PDF/Excel, synchronisation WebSocket, clôture managériale d'un écart, connexion hors ligne et PWA hors ligne. Aucun bouton ne doit simuler leur succès.
-
-La connexion à de vraies données et le déploiement de production demandent : revue du cahier des charges complet, validation des droits utilisateurs et des entrepôts réels, sauvegarde MySQL, HTTPS, gestion des secrets et stratégie de migrations versionnées. Ce code constitue **une première livraison de développement**, non une mise en production.
-
-Voir [Référence PDF](docs/FIDELITE_PDF.md) et [contrat API](api/README.md).
+Aucun déploiement de production n’est effectué par cette livraison. Avant ouverture : configurer les comptes/entrepôts réels, HTTPS, les secrets, les sauvegardes et le proxy HTTP/WebSocket. Servir `smtr/dist` sous `/smtr/`, l’API sous `/smtr/api/v1` et les connexions WebSocket sous `/smtr/ws`.
