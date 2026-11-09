@@ -1,3 +1,4 @@
+import { authenticatedFetch, rememberSession, selectOrganization, forgetSession } from './posTransport';
 import { isRole, type Role } from './permissions';
 
 export interface AuthenticatedUser {
@@ -6,7 +7,10 @@ export interface AuthenticatedUser {
   role: Role;
   twoFactorVerified: boolean;
 }
+export type Organization={id:string;name:string;role:Role};
 export interface Session {
+  organizationId:string;
+  organizations:Organization[];
   accessToken: string;
   user: AuthenticatedUser;
 }
@@ -30,12 +34,11 @@ export class ApiError extends Error {
   }
 }
 
-const BASE_URL = (import.meta.env.VITE_SMTR_API_BASE_URL || '/smtr/api/v1').replace(/\/+$/, '');
 
 export async function request<T>(path: string, token: string | null, options: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(BASE_URL + path, {
+    res = await authenticatedFetch(path, token, {
       ...options,
       headers: {
         Accept: 'application/json',
@@ -55,33 +58,34 @@ export async function request<T>(path: string, token: string | null, options: Re
       ? String(body.message) : 'Le serveur a refusé cette opération.';
     throw new ApiError(detail, res.status);
   }
-  return body as T;
+  if (!body || typeof body!=='object' || !('success' in body) || body.success!==true) throw new ApiError('Reponse POS invalide.',502);
+  return ('data' in body?body.data:undefined) as T;
 }
 
-export async function login(email: string, password: string, otp?: string): Promise<Session> {
-  const raw = await request<unknown>('/auth/login', null, {
-    method: 'POST', body: JSON.stringify({ email, password, ...(otp ? { otp } : {}) }),
-  });
-  if (!raw || typeof raw !== 'object') throw new ApiError('Réponse d’authentification invalide.', 502);
-  const data = raw as Record<string, unknown>;
-  const user = data.user as Record<string, unknown> | undefined;
-  if (typeof data.accessToken !== 'string' || !data.accessToken ||
-      !user || !isRole(user.role) || typeof user.id !== 'string' ||
-      typeof user.name !== 'string') {
-    throw new ApiError('Contrat d’authentification non reconnu.', 502);
-  }
-  if (user.role === 'director' && user.twoFactorVerified !== true) {
-    throw new ApiError('Authentification à deux facteurs requise pour la Direction.', 403);
-  }
-  return {
-    accessToken: data.accessToken,
-    user: {
-      id: user.id, name: user.name, role: user.role,
-      twoFactorVerified: user.twoFactorVerified === true,
-    },
-  };
+export async function activateOrganization(session:Session,organizationId:string):Promise<Session>{
+  const organization=session.organizations.find(x=>x.id===organizationId);
+  if(!organization)throw new ApiError('Entreprise POS non autorisee.',403);
+  selectOrganization(session.accessToken,organizationId);
+  const access=await request<{role:Role}>('/access/me',session.accessToken);
+  if(!isRole(access.role))throw new ApiError('Profil POS non reconnu.',403);
+  return {...session,organizationId,user:{...session.user,role:access.role}};
 }
-
+export async function login(email:string,password:string,otp?:string):Promise<Session>{
+  const data=await request<{accessToken:string;refreshToken:string;user:{id:number|string;username:string;twoFactorVerified:boolean};enrollmentRequired?:boolean}>('/auth/login',null,{method:'POST',body:JSON.stringify({username:email,password,workspace:'SMTR',...(otp?{otp}:{})})});
+  if(data.enrollmentRequired)throw new MfaEnrollmentRequired();
+  if(!data?.accessToken||!data.refreshToken||!data.user)throw new ApiError('Authentification POS invalide.',502);
+  return sessionFromPOS(data);
+}
+async function sessionFromPOS(data:{accessToken:string;refreshToken:string;user:{id:number|string;username:string;twoFactorVerified:boolean}}):Promise<Session>{
+  rememberSession(data.accessToken,data.refreshToken);
+  try{
+    const context=await request<{organizations:Organization[]}>('/auth/context',data.accessToken);
+    const organizations=context.organizations.filter(x=>isRole(x.role));
+    if(!organizations.length)throw new ApiError('Aucun espace SMTR actif pour ce compte POS.',403);
+    const session:Session={accessToken:data.accessToken,organizationId:'',organizations,user:{id:String(data.user.id),name:data.user.username,role:organizations[0].role,twoFactorVerified:data.user.twoFactorVerified===true}};
+    return organizations.length===1?activateOrganization(session,organizations[0].id):session;
+  }catch(e){forgetSession(data.accessToken);throw e;}
+}
 export async function fetchMetrics(token: string, signal?: AbortSignal): Promise<SummaryMetric[]> {
   const result = await request<{metrics: SummaryMetric[]}>('/dashboard/summary', token, {signal});
   if (!result || !Array.isArray(result.metrics)) throw new ApiError('Format du tableau de bord non reconnu.', 502);
@@ -154,6 +158,14 @@ export function reportTransferDiscrepancy(token:string,id:string,presentItemIds:
     method:'POST',body:JSON.stringify({presentItemIds,reason}),
   });
 }
-export function logout(token:string){
-  return request<void>('/auth/logout',token,{method:'POST'});
+export async function logout(token:string){
+  try { await request<void>('/auth/logout',token,{method:'POST'}); } finally { forgetSession(token); }
+}
+
+export type MfaEnrollment={secret:string;enrollmentToken:string;uri:string};
+export class MfaEnrollmentRequired extends Error {constructor(){super('Configurez la double authentification POS.');}}
+export function setupMfa(username:string,password:string){return request<MfaEnrollment>('/auth/mfa/setup',null,{method:'POST',body:JSON.stringify({username,password})});}
+export async function confirmMfa(enrollmentToken:string,otp:string):Promise<Session>{
+ const data=await request<{accessToken:string;refreshToken:string;user:{id:number|string;username:string;twoFactorVerified:boolean}}>('/auth/mfa/confirm',null,{method:'POST',body:JSON.stringify({enrollmentToken,otp})});
+ return sessionFromPOS(data);
 }

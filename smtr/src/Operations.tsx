@@ -1,3 +1,4 @@
+import {authenticatedFetch} from './posTransport';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AlertCircle, ArrowLeftRight, CheckCircle2, LoaderCircle, PackageSearch, Search } from 'lucide-react';
 import {
@@ -87,8 +88,7 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
     setImporting(true);setError('');setNotice('');
     try{
       const form=new FormData();form.set('warehouseId',warehouseId);form.set('file',file);
-      const base=(import.meta.env.VITE_SMTR_API_BASE_URL||'/smtr/api/v1').replace(/\/+$/,'');
-      const response=await fetch(base+'/stocks/import',{
+      const response=await authenticatedFetch('/stocks/import',token,{
         method:'POST',headers:{Authorization:'Bearer '+token},body:form,credentials:'omit',cache:'no-store',
       });
       const data=await response.json();
