@@ -2,14 +2,14 @@
   "name": "SMTR — Groupe Sinocet Electronics",
   "short_name": "SMTR",
   "description": "Système de Management & Suivi en Temps Réel",
-  "start_url": "/smtr/",
-  "scope": "/smtr/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f4f7fb",
   "theme_color": "#0b1930",
   "icons": [
     {
-      "src": "/smtr/icon.svg",
+      "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
