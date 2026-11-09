@@ -9,12 +9,14 @@ import {
 } from './api';
 import type { ModuleId, Role } from './permissions';
 import { displayError, get, post } from './services';
+import { pendingPosReceipts, receivePosTransfer, reportPosDiscrepancy } from './posReception';
 import ImeiScanner from './ImeiScanner';
 
 type Props = {
   screen: 'stocks' | 'transfers';
   role: Role;
   token: string | null;
+  posOrganizationId?: string;
   preview: boolean;
   onLogout: () => void;
   onNavigate: (module: ModuleId) => void;
@@ -433,7 +435,7 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
   </div>;
 }
 
-function AgentReception({token,preview,onLogout}:Props) {
+function AgentReception({token,preview,onLogout,posOrganizationId}:Props) {
   const [pending,setPending]=useState<PendingTransfer[]>([]);
   const [selectedId,setSelectedId]=useState('');
   const [checked,setChecked]=useState<string[]>([]);
@@ -447,21 +449,23 @@ function AgentReception({token,preview,onLogout}:Props) {
   useEffect(()=>{
     if(!token)return;
     let mounted=true;setLoading(true);setError('');
-    listPendingTransfers(token).then(r=>{
+    (posOrganizationId?pendingPosReceipts(token,posOrganizationId):listPendingTransfers(token)).then(r=>{
       if(!mounted)return;
       setPending(r.transfers);
       setSelectedId(current=>r.transfers.some(x=>x.id===current)?current:r.transfers[0]?.id||'');
     }).catch(e=>{if(mounted)setError(getError(e,onLogout));})
       .finally(()=>{if(mounted)setLoading(false);});
     return()=>{mounted=false;};
-  },[token,reload,onLogout]);
+  },[token,reload,onLogout,posOrganizationId]);
   const transfer=pending.find(x=>x.id===selectedId);
   function selectTransfer(id:string){setSelectedId(id);setChecked([]);setReason('');setShowDiscrepancy(false);}
   async function confirm() {
     if(!token||!transfer||sending)return;
     setSending(true);setError('');setNotice('');
     try{
-      const result=await receiveTransfer(token,transfer.id,checked);
+      const result=posOrganizationId
+        ? await receivePosTransfer(token,posOrganizationId,transfer.id,checked)
+        : await receiveTransfer(token,transfer.id,checked);
       setNotice('Réception du transfert #'+result.transfer.id+' validée. Stock agent mis à jour.');
       setChecked([]);setReload(x=>x+1);
     }catch(e){setError(getError(e,onLogout));}finally{setSending(false);}
@@ -470,7 +474,9 @@ function AgentReception({token,preview,onLogout}:Props) {
     event.preventDefault();if(!token||!transfer||sending)return;
     setSending(true);setError('');setNotice('');
     try{
-      const result=await reportTransferDiscrepancy(token,transfer.id,checked,reason);
+      const result=posOrganizationId
+        ? await reportPosDiscrepancy(token,posOrganizationId,transfer.id,checked,reason)
+        : await reportTransferDiscrepancy(token,transfer.id,checked,reason);
       setNotice('Écart signalé sur le transfert #'+result.transfer.id+'. Articles gelés : examen Manager requis.');
       setChecked([]);setReason('');setShowDiscrepancy(false);setReload(x=>x+1);
     }catch(e){setError(getError(e,onLogout));}finally{setSending(false);}

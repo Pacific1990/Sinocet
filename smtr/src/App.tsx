@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { login, logout as logoutRemote, type Session } from './api';
 import { ApiError } from './api';
+import { loginPosReception, posReceptionEnabled } from './posReception';
 import { get, post } from './services';
 import { isModule, isRole, roleModules, type ModuleId, type Role } from './permissions';
 import Operations from './Operations';
@@ -72,7 +73,9 @@ function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
     event.preventDefault();if(busy)return;
     setBusy(true);setError('');
     try{
-      const session=await login(email.trim(),password,otp.trim()||undefined);
+      const session=posReceptionEnabled
+        ? await loginPosReception(email.trim(),password)
+        : await login(email.trim(),password,otp.trim()||undefined);
       setPassword('');setOtp('');onSuccess(session);
     }catch(e){setError(e instanceof Error?e.message:'Connexion impossible.');}
     finally{setBusy(false);}
@@ -97,7 +100,9 @@ function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
         <div className="mobile-brand"><Brand compact/></div>
         <span className="kicker">ESPACE SÉCURISÉ</span>
         <h2>Bienvenue sur SMTR</h2>
-        <p className="muted">Connectez-vous avec les accès fournis par votre organisation.</p>
+        <p className="muted">{posReceptionEnabled
+          ? 'Recette de la réception Agent avec un compte EkoLabs POS.'
+          : 'Connectez-vous avec les accès fournis par votre organisation.'}</p>
         <form onSubmit={submit} className="login-form">
           <label htmlFor="smtr-email">Adresse e-mail professionnelle</label>
           <input id="smtr-email" type="email" autoComplete="username" inputMode="email"
@@ -105,11 +110,13 @@ function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
           <label htmlFor="smtr-password">Mot de passe</label>
           <input id="smtr-password" type="password" autoComplete="current-password"
             required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Votre mot de passe"/>
+          {!posReceptionEnabled&&<>
           <label htmlFor="smtr-otp">Code 2FA — Direction / Administrateur</label>
           <input id="smtr-otp" type="text" inputMode="numeric" autoComplete="one-time-code"
             pattern="[0-9]{6}" maxLength={6} value={otp}
             onChange={e=>setOtp(e.target.value.replace(/\D/g,''))}
             placeholder="6 chiffres lorsque requis"/>
+          </>}
           {error&&<p className="form-error" role="alert"><AlertCircle size={17}/>{error}</p>}
           <button className="primary-button" type="submit" disabled={busy}>
             {busy?<LoaderCircle size={18} className="spin"/>:<>Se connecter <ArrowRight size={18}/></>}
@@ -131,7 +138,8 @@ function Workspace({session,preview,onLogout}:{
 }){
   const role:Role=session?.user.role??preview??'agent';
   const isPreview=!session;
-  const initialScreen:ModuleId=role==='admin'?'system':'dashboard';
+  const posOrganizationId=session?.posOrganizationId;
+  const initialScreen:ModuleId=posOrganizationId?'transfers':role==='admin'?'system':'dashboard';
   const [screen,setScreen]=useState<ModuleId>(initialScreen);
   const [access,setAccess]=useState<Access|null>(null);
   const [accessError,setAccessError]=useState('');
@@ -141,17 +149,18 @@ function Workspace({session,preview,onLogout}:{
   const [refresh,setRefresh]=useState(0);
   const [accessReload,setAccessReload]=useState(0);
   const allowed=useMemo(()=>{
+    if(posOrganizationId)return ['transfers'] as ModuleId[];
     const ids=isPreview?roleModules(role):
       (access?.navigation||[]).map(n=>n.id).filter(isModule);
     return [...new Set(ids)] as ModuleId[];
-  },[isPreview,role,access]);
+  },[isPreview,role,access,posOrganizationId]);
   const navigationLabels=new Map(access?.navigation.map(x=>[x.id,x.label])||[]);
   const nav=MODULES[screen];
   const refreshData=useCallback(()=>setRefresh(x=>x+1),[]);
   const refreshMenus=useCallback(()=>setAccessReload(x=>x+1),[]);
 
   useEffect(()=>{
-    if(isPreview||!session){setAccessLoading(false);return;}
+    if(isPreview||!session||session.posOrganizationId){setAccessLoading(false);return;}
     let active=true;setAccessError('');setAccessLoading(true);
     get<Access>('/access/me',session.accessToken)
       .then(data=>{
@@ -178,7 +187,7 @@ function Workspace({session,preview,onLogout}:{
   },[]);
 
   useEffect(()=>{
-    if(!session||!navigator.onLine)return;
+    if(!session||session.posOrganizationId||!navigator.onLine)return;
     let active=true;let socket:WebSocket|null=null;
     let retry:number|null=null;
     async function connect(){
@@ -219,7 +228,7 @@ function Workspace({session,preview,onLogout}:{
     }
     switch(screen){
       case 'dashboard':return <DashboardPage {...common} role={role} onNavigate={navigate}/>;
-      case 'stocks':case 'transfers':return <Operations {...common} screen={screen} role={role} onNavigate={navigate}/>;
+      case 'stocks':case 'transfers':return <Operations {...common} screen={screen} role={role} onNavigate={navigate} posOrganizationId={posOrganizationId}/>;
       case 'sales':return <SalesPage {...common} role={role} userId={session?.user.id||''} onRefresh={refreshData}/>;
       case 'debts':return <DebtsPage {...common} role={role} onRefresh={refreshData}/>;
       case 'cash':return <CashPage {...common} role={role} onRefresh={refreshData}/>;
@@ -339,11 +348,11 @@ function Workspace({session,preview,onLogout}:{
 export default function App(){
   const [session,setSession]=useState<Session|null>(null);
   const activeRef=useRef<Session|null>(null);
-  const preview=previewRole();
+  const preview=posReceptionEnabled?null:previewRole();
   useEffect(()=>{activeRef.current=session;},[session]);
   const logout=useCallback(()=>{
     const active=activeRef.current;
-    if(active)void logoutRemote(active.accessToken).catch(()=>undefined);
+    if(active&&!active.posOrganizationId)void logoutRemote(active.accessToken).catch(()=>undefined);
     activeRef.current=null;setSession(null);
     if(preview)window.location.assign(window.location.pathname);
   },[preview]);

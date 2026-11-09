@@ -7,6 +7,7 @@ export interface AuthenticatedUser {
   twoFactorVerified: boolean;
 }
 export interface Session {
+  posOrganizationId?: string;
   accessToken: string;
   user: AuthenticatedUser;
 }
