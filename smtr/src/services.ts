@@ -1,3 +1,4 @@
+import {authenticatedFetch} from './posTransport';
 ﻿import { ApiError, request } from './api';
 
 export async function get<T>(path:string,token:string,signal?:AbortSignal):Promise<T>{
@@ -23,10 +24,9 @@ export async function exportFile(path:string,token:string,filename:string):Promi
   if(!path.startsWith('/')||path.startsWith('//')||!/^[-a-zA-Z0-9_./?=&%]+$/.test(path)){
     throw new Error('Chemin de téléchargement invalide.');
   }
-  const base=(import.meta.env.VITE_SMTR_API_BASE_URL||'/smtr/api/v1').replace(/\/+$/,'');
   let response:Response;
   try{
-    response=await fetch(base+path,{
+    response=await authenticatedFetch(path,token,{
       headers:{Authorization:'Bearer '+token},cache:'no-store',credentials:'omit',
     });
   }catch{throw new ApiError('Téléchargement indisponible.',0);}

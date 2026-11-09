@@ -1,12 +1,13 @@
 /* Offline shell caching: no API, no credentials, no personal information. */
-const CACHE='smtr-shell-v2';
-const SCOPE='/smtr/';
+const SCOPE=new URL(self.registration.scope).pathname;
+const CACHE_PREFIX='smtr-shell:'+SCOPE+':';
+const CACHE=CACHE_PREFIX+'v3';
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll([SCOPE, SCOPE+'manifest.webmanifest', SCOPE+'icon.svg'])));
   self.skipWaiting();
 });
 self.addEventListener('activate',event=>{
-  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('smtr-shell-')&&k!==CACHE).map(k=>caches.delete(k)))));
+  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith(CACHE_PREFIX)&&k!==CACHE).map(k=>caches.delete(k)))));
   self.clients.claim();
 });
 self.addEventListener('fetch',event=>{

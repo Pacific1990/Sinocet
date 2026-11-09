@@ -8,7 +8,7 @@ import {
   ListChecks, SlidersHorizontal, BarChart3, X,
   type LucideIcon,
 } from 'lucide-react';
-import { login, logout as logoutRemote, type Session } from './api';
+import { login, activateOrganization, setupMfa, confirmMfa, MfaEnrollmentRequired, type MfaEnrollment, logout as logoutRemote, type Session } from './api';
 import { ApiError } from './api';
 import { get, post } from './services';
 import { isModule, isRole, roleModules, type ModuleId, type Role } from './permissions';
@@ -63,6 +63,9 @@ function Brand({compact=false}:{compact?:boolean}){
   </div>;
 }
 function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
+  const [enrollment,setEnrollment]=useState<MfaEnrollment|null>(null);
+  const [pending,setPending]=useState<Session|null>(null);
+  const [organizationId,setOrganizationId]=useState('');
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [otp,setOtp]=useState('');
@@ -72,8 +75,13 @@ function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
     event.preventDefault();if(busy)return;
     setBusy(true);setError('');
     try{
-      const session=await login(email.trim(),password,otp.trim()||undefined);
-      setPassword('');setOtp('');onSuccess(session);
+      if(pending){onSuccess(await activateOrganization(pending,organizationId));return;}
+      let session:Session;
+      try{session=enrollment?await confirmMfa(enrollment.enrollmentToken,otp.trim()):await login(email.trim(),password,otp.trim()||undefined);}
+      catch(e){if(e instanceof MfaEnrollmentRequired){setEnrollment(await setupMfa(email.trim(),password));setPassword('');setOtp('');return;}throw e;}
+      setEnrollment(null);
+      setPassword('');setOtp('');
+      if(!session.organizationId){setPending(session);setOrganizationId(session.organizations[0].id);}else onSuccess(session);
     }catch(e){setError(e instanceof Error?e.message:'Connexion impossible.');}
     finally{setBusy(false);}
   }
@@ -99,20 +107,23 @@ function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
         <h2>Bienvenue sur SMTR</h2>
         <p className="muted">Connectez-vous avec les accès fournis par votre organisation.</p>
         <form onSubmit={submit} className="login-form">
+          {enrollment&&<div className="catalog-inner-panel"><p>Ajoutez cette cle dans votre application d’authentification, puis saisissez son code a six chiffres.</p><code style={{overflowWrap:'anywhere'}}>{enrollment.secret}</code><p><a href={enrollment.uri}>Ouvrir l’application d’authentification</a></p></div>}
+          {pending?<><label htmlFor="smtr-organization">Entreprise POS</label><select id="smtr-organization" required value={organizationId} onChange={e=>setOrganizationId(e.target.value)}>{pending.organizations.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></>:<>
           <label htmlFor="smtr-email">Adresse e-mail professionnelle</label>
           <input id="smtr-email" type="email" autoComplete="username" inputMode="email"
-            required value={email} onChange={e=>setEmail(e.target.value)} placeholder="nom@entreprise.ci"/>
+            required={!enrollment} disabled={!!enrollment} value={email} onChange={e=>setEmail(e.target.value)} placeholder="nom@entreprise.ci"/>
           <label htmlFor="smtr-password">Mot de passe</label>
           <input id="smtr-password" type="password" autoComplete="current-password"
-            required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Votre mot de passe"/>
+            required={!enrollment} disabled={!!enrollment} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Votre mot de passe"/>
           <label htmlFor="smtr-otp">Code 2FA — Direction / Administrateur</label>
           <input id="smtr-otp" type="text" inputMode="numeric" autoComplete="one-time-code"
             pattern="[0-9]{6}" maxLength={6} value={otp}
             onChange={e=>setOtp(e.target.value.replace(/\D/g,''))}
             placeholder="6 chiffres lorsque requis"/>
+          </>}
           {error&&<p className="form-error" role="alert"><AlertCircle size={17}/>{error}</p>}
           <button className="primary-button" type="submit" disabled={busy}>
-            {busy?<LoaderCircle size={18} className="spin"/>:<>Se connecter <ArrowRight size={18}/></>}
+            {busy?<LoaderCircle size={18} className="spin"/>:<>{pending?'Ouvrir mon espace':enrollment?'Confirmer la double authentification':'Se connecter'} <ArrowRight size={18}/></>}
           </button>
         </form>
         <p className="security-hint"><Shield size={15}/> Accès soumis à authentification et autorisations serveur.</p>
@@ -187,7 +198,7 @@ function Workspace({session,preview,onLogout}:{
         const response=await post<{ticket:string}>('/events/ticket',session.accessToken,{});
         if(!active)return;
         const protocol=location.protocol==='https:'?'wss:':'ws:';
-        socket=new WebSocket(protocol+'//'+location.host+'/smtr/ws?ticket='+encodeURIComponent(response.ticket));
+        socket=new WebSocket(protocol+'//'+location.host+'/ekolabs/pos/ws?ticket='+encodeURIComponent(response.ticket));
         socket.onmessage=event=>{
           try{const data=JSON.parse(String(event.data));if(data?.event==='refresh'){setRefresh(x=>x+1);if(data.resource==='system')setAccessReload(x=>x+1);}}catch{/* ignore invalid */ }
         };
@@ -349,7 +360,7 @@ export default function App(){
   },[preview]);
   useEffect(()=>{
     if(!import.meta.env.PROD||!('serviceWorker' in navigator))return;
-    void navigator.serviceWorker.register('/smtr/sw.js',{scope:'/smtr/'}).catch(()=>undefined);
+    void navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js',{scope:import.meta.env.BASE_URL}).catch(()=>undefined);
   },[]);
   return session||preview?<Workspace session={session} preview={preview} onLogout={logout}/>:
     <Login onSuccess={authenticated=>{activeRef.current=authenticated;setSession(authenticated);}}/>;
