@@ -360,7 +360,7 @@ export default function App(){
   },[preview]);
   useEffect(()=>{
     if(!import.meta.env.PROD||!('serviceWorker' in navigator))return;
-    void navigator.serviceWorker.register('/smtr/sw.js',{scope:'/smtr/'}).catch(()=>undefined);
+    void navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js',{scope:import.meta.env.BASE_URL}).catch(()=>undefined);
   },[]);
   return session||preview?<Workspace session={session} preview={preview} onLogout={logout}/>:
     <Login onSuccess={authenticated=>{activeRef.current=authenticated;setSession(authenticated);}}/>;
