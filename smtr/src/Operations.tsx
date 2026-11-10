@@ -93,8 +93,9 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
         method:'POST',headers:{Authorization:'Bearer '+token},body:form,credentials:'omit',cache:'no-store',
       });
       const data=await response.json();
-      if(!response.ok)throw new Error(data.message||'Import Excel impossible.');
-      setNotice(data.import.quantity+' IMEI importés. '+data.import.skuCount+' référence(s) concernée(s).');
+      if(!response.ok||!data.success||!data.data?.import)throw new Error(data.message||'Import Excel impossible.');
+      const imported=data.data.import;
+      setNotice(imported.quantity+' IMEI importés. '+imported.skuCount+' référence(s) concernée(s).');
       setReload(x=>x+1);
     }catch(e){setError(displayError(e,onLogout));}
     finally{setImporting(false);if(inputRef.current)inputRef.current.value='';}
@@ -149,6 +150,8 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
         <div><h2>{showProduct?"Nouvelle référence produit":showReception?"Réceptionner un lot":"Stock Central"}{warehouses.length===1?' — '+warehouses[0].name:''}</h2>
           <p>Consultation et réception des arrivages fournisseurs</p></div>
         {!showProduct&&!showReception&&<div className="ref-actions">
+          <a className="ref-button ref-button--outline" href={import.meta.env.BASE_URL+"modele-import-stock.xlsx"}
+            download="modele-import-stock.xlsx">Télécharger le modèle Excel</a>
           <button type="button" className="ref-button ref-button--outline"
             disabled={preview||importing||!warehouseId} onClick={()=>inputRef.current?.click()}>
             {importing?'Import en cours…':'Importer Excel'}
