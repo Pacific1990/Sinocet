@@ -1,4 +1,4 @@
-import {authenticatedFetch} from './posTransport';
+import {downloadExcelTemplate, uploadExcel, type ImportPreview} from './importExcel';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AlertCircle, ArrowLeftRight, CheckCircle2, LoaderCircle, PackageSearch, Search } from 'lucide-react';
 import {
@@ -72,45 +72,39 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
   const [sending,setSending]=useState(false);
   const inputRef=useRef<HTMLInputElement|null>(null);
   const [importing,setImporting]=useState(false);
-  const [showProduct,setShowProduct]=useState(false);
-  const [productName,setProductName]=useState('');
-  const [productCategory,setProductCategory]=useState('');
-  const [sku,setSku]=useState('');
-  const [minimumLevel,setMinimumLevel]=useState('');
+  const [stockFile,setStockFile]=useState<File|null>(null);
+  const [stockPreview,setStockPreview]=useState<ImportPreview|null>(null);
+  const [quantity,setQuantity]=useState('1');
+  const [supplierName,setSupplierName]=useState('');
+  const [receiptReference,setReceiptReference]=useState('');
+  const [receivedOn,setReceivedOn]=useState('');
+  const trackingMode=products.find(p=>p.id===productId)?.trackingMode||'individual';
 
   async function importExcel(file:File){
     if(!token||importing||!warehouseId)return;
-    if(!/\.xlsx$/i.test(file.name)||file.size>2*1024*1024){
-      setError('Sélectionnez un fichier .xlsx de moins de 2 Mo.');return;
-    }
-    if(!window.confirm('Importer ce lot Excel dans le stock central sélectionné ?')){
-      if(inputRef.current)inputRef.current.value='';return;
-    }
-    setImporting(true);setError('');setNotice('');
-    try{
-      const form=new FormData();form.set('warehouseId',warehouseId);form.set('file',file);
-      const response=await authenticatedFetch('/stocks/import',token,{
-        method:'POST',headers:{Authorization:'Bearer '+token},body:form,credentials:'omit',cache:'no-store',
-      });
-      const data=await response.json();
-      if(!response.ok||!data.success||!data.data?.import)throw new Error(data.message||'Import Excel impossible.');
-      const imported=data.data.import;
-      setNotice(imported.quantity+' IMEI importés. '+imported.skuCount+' référence(s) concernée(s).');
-      setReload(x=>x+1);
+    setStockFile(file);setStockPreview(null);setImporting(true);setError('');setNotice('');
+    try {
+      const response=await uploadExcel(token,'/stocks/import/preview',file,warehouseId);
+      setStockPreview(response.preview||null);
     }catch(e){setError(displayError(e,onLogout));}
     finally{setImporting(false);if(inputRef.current)inputRef.current.value='';}
   }
-  async function createProduct(event:FormEvent<HTMLFormElement>){
-    event.preventDefault();if(!token||sending)return;
-    setSending(true);setError('');setNotice('');
-    try{
-      await post('/stocks/products',token,{
-        name:productName,category:productCategory,sku,minimumLevel:Number(minimumLevel||0),
-      });
-      setNotice('Référence produit enregistrée.');
-      setProductName('');setProductCategory('');setSku('');setMinimumLevel('');
-      setShowProduct(false);setReload(x=>x+1);
-    }catch(e){setError(displayError(e,onLogout));}finally{setSending(false);}
+  async function commitExcel(){
+    if(!token||!stockFile||!stockPreview?.canImport||importing||!warehouseId)return;
+    setImporting(true);setError('');setNotice('');
+    try {
+      const response=await uploadExcel(token,'/stocks/import',stockFile,warehouseId);
+      setNotice((response.import?.quantity||0)+' unités reçues. '+(response.import?.skuCount||0)+' références.');
+      setStockFile(null);setStockPreview(null);setReload(x=>x+1);
+    }catch(e){setError(displayError(e,onLogout));}
+    finally{setImporting(false);}
+  }
+  async function downloadTemplate(){
+    if(!token)return;
+    setImporting(true);setError('');
+    try{await downloadExcelTemplate(token);}
+    catch(e){setError(displayError(e,onLogout));}
+    finally{setImporting(false);}
   }
 
   useEffect(()=>{
@@ -134,24 +128,34 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
   async function saveLot(event:FormEvent<HTMLFormElement>){
     event.preventDefault(); if (!token || sending) return;
     const entries=imeisText.split(/[\r\n,;]+/).map(x=>x.trim()).filter(Boolean);
-    if (!entries.length || entries.length>100 || entries.some(imei=>!/^\d{15,16}$/.test(imei))){
-      setError('Saisissez de 1 à 100 IMEI à 15 ou 16 chiffres, un par ligne.'); return;
+    const count=Number(quantity);
+    if(trackingMode==='individual' &&
+      (!entries.length||entries.length>100||entries.some(imei=>!/^\d{15,16}$/.test(imei)))){
+      setError('Saisissez de 1 à 100 IMEI à 15 ou 16 chiffres, un par ligne.');return;
+    }
+    if(trackingMode==='standard' &&
+      (!Number.isInteger(count)||count<1||count>500)){
+      setError('Saisissez une quantité comprise entre 1 et 500.');return;
     }
     setSending(true);setError('');setNotice('');
     try{
-      const result=await receiveStock(token,{warehouseId,productId,items:entries.map(imei=>({imei,location}))});
+      const metadata={location,supplierName,receiptReference,receivedOn:receivedOn||null};
+      const items=trackingMode==='standard'
+        ?Array.from({length:count},()=>({imei:'',...metadata}))
+        :entries.map(imei=>({imei,...metadata}));
+      const result=await receiveStock(token,{warehouseId,productId,items});
       setNotice(result.quantity+' exemplaire(s) enregistré(s) dans le stock central.');
-      setImeisText('');setShowReception(false);setReload(x=>x+1);
+      setImeisText('');setQuantity('1');setShowReception(false);setReload(x=>x+1);
     }catch(e){setError(getError(e,onLogout));}finally{setSending(false);}
   }
   return <div className="smtr-ref">
     <section className="ref-panel ref-panel--stock">
       <div className="ref-panel-head">
-        <div><h2>{showProduct?"Nouvelle référence produit":showReception?"Réceptionner un lot":"Stock Central"}{warehouses.length===1?' — '+warehouses[0].name:''}</h2>
+        <div><h2>{stockPreview?"Prévisualiser l'import":showReception?"Réceptionner un lot":"Stock Central"}{warehouses.length===1?' — '+warehouses[0].name:''}</h2>
           <p>Consultation et réception des arrivages fournisseurs</p></div>
-        {!showProduct&&!showReception&&<div className="ref-actions">
-          <a className="ref-button ref-button--outline" href={import.meta.env.BASE_URL+"modele-import-stock.xlsx"}
-            download="modele-import-stock.xlsx">Télécharger le modèle Excel</a>
+        {!showReception&&!stockPreview&&<div className="ref-actions">
+          <button type="button" className="ref-button ref-button--outline" disabled={preview||importing}
+            onClick={()=>void downloadTemplate()}>Télécharger le modèle Excel</button>
           <button type="button" className="ref-button ref-button--outline"
             disabled={preview||importing||!warehouseId} onClick={()=>inputRef.current?.click()}>
             {importing?'Import en cours…':'Importer Excel'}
@@ -159,29 +163,16 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
           <input type="file" ref={inputRef} style={{display:'none'}} accept=".xlsx" aria-label="Choisir un fichier Excel"
             onChange={e=>{const file=e.target.files?.[0];if(file)void importExcel(file);}}/>
           <button type="button" className="ref-button ref-button--outline" disabled={preview}
-            onClick={()=>setShowProduct(v=>!v)}>+ Référence produit</button>
+            onClick={()=>onNavigate('products')}>Gérer les produits</button>
           <button type="button" className="ref-button ref-button--blue" disabled={preview}
             onClick={()=>{setShowReception(x=>!x);setNotice('');}}>+ Réceptionner un lot</button>
         </div>}
       </div>
       {notice&&<Notice message={notice} tone="success"/>}
       {error&&<Notice message={error} tone="error"/>}
-    {!showProduct&&!showReception&&<>
-      <p className="catalog-note">Import Excel : colonnes SKU, IMEI (texte) et EMPLACEMENT (facultative). 500 lignes et 2 Mo maximum.</p>
+    {!showReception&&!stockPreview&&<>
+      <p className="catalog-note">Import Excel : feuille STOCK (SKU, IMEI pour les téléphones, QUANTITE pour les accessoires, emplacement, fournisseur et date). Prévisualisation obligatoire.</p>
     </>}
-          {showProduct&&!preview&&<form className="ref-form ref-reception" onSubmit={createProduct}>
-        <h3>Nouvelle référence produit</h3>
-        <div className="ref-fields">
-          <label>Nom du produit<input required minLength={2} maxLength={180} value={productName} onChange={e=>setProductName(e.target.value)}/></label>
-          <label>Catégorie<input required minLength={2} maxLength={120} value={productCategory} onChange={e=>setProductCategory(e.target.value)}/></label>
-          <label>SKU (référence unique)<input required minLength={2} maxLength={80} value={sku} onChange={e=>setSku(e.target.value)}/></label>
-          <label>Seuil mini<input required type="number" min={0} max={100000} value={minimumLevel} onChange={e=>setMinimumLevel(e.target.value)}/></label>
-        </div>
-        <div className="ref-form-actions">
-          <button className="ref-button ref-button--outline" type="button" onClick={()=>setShowProduct(false)}>Annuler</button>
-          <button className="ref-button ref-button--blue" type="submit" disabled={sending}>Enregistrer la référence</button>
-        </div>
-      </form>}
       {showReception&&!preview&&<form className="ref-form ref-reception" onSubmit={saveLot}>
         <h3>Réceptionner un lot — stock central</h3>
         <div className="ref-fields">
@@ -201,18 +192,49 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
             <input value={location} onChange={e=>setLocation(e.target.value)} maxLength={100} placeholder="Rayon / zone"/>
           </label>
         </div>
-        <label>IMEI du lot — un par ligne
-          <textarea rows={4} value={imeisText} onChange={e=>setImeisText(e.target.value)}
-            placeholder="Saisir les IMEI réellement réceptionnés" required/>
-        </label>
-        {!products.length&&<Notice message="Aucune référence produit active. Un manager doit créer les références via l’API avant réception."/>}
+        {trackingMode==='standard'
+          ?<label>Quantité reçue
+              <input type="number" min={1} max={500} required value={quantity}
+                onChange={e=>setQuantity(e.target.value)}/>
+            </label>
+          :<label>IMEI du lot — un par ligne
+              <textarea rows={4} value={imeisText} onChange={e=>setImeisText(e.target.value)}
+                placeholder="Saisir les IMEI réellement réceptionnés" required/>
+            </label>}
+        <div className="ref-fields">
+          <label>Fournisseur (facultatif)<input value={supplierName} maxLength={150}
+            onChange={e=>setSupplierName(e.target.value)}/></label>
+          <label>Référence de réception<input value={receiptReference} maxLength={100}
+            onChange={e=>setReceiptReference(e.target.value)}/></label>
+          <label>Date de réception<input type="date" value={receivedOn}
+            onChange={e=>setReceivedOn(e.target.value)}/></label>
+        </div>
+        {!products.length&&<Notice message="Aucun produit actif : créez d'abord une référence dans le menu Produits."/>}
         <div className="ref-form-actions">
           <button type="button" className="ref-button ref-button--outline" onClick={()=>setShowReception(false)}>Annuler</button>
           <button type="submit" className="ref-button ref-button--blue" disabled={sending||!products.length||!warehouses.length}>
             {sending?'Enregistrement…':'Enregistrer le lot'}</button>
         </div>
       </form>}
-    {!showProduct&&!showReception&&<>
+    {stockPreview&&<div className="product-import-preview">
+      <p><strong>{stockPreview.validCount} lignes valides</strong> · {stockPreview.invalidCount} erreurs · {stockPreview.totalUnits} unités</p>
+      <div className="ref-table-scroll"><table className="ref-table">
+        <thead><tr><th>LIGNE</th><th>SKU</th><th>RÉCEPTION</th><th>VALIDATION</th></tr></thead>
+        <tbody>{stockPreview.lines.map(line=><tr key={line.row}>
+          <td>{line.row}</td><td>{line.sku}</td><td>{line.action}</td>
+          <td>{line.error||'Prête'}</td>
+        </tr>)}</tbody>
+      </table></div>
+      <div className="ref-form-actions">
+        <button type="button" className="ref-button ref-button--outline" onClick={()=>{
+          setStockFile(null);setStockPreview(null);}}>Annuler</button>
+        <button type="button" className="ref-button ref-button--blue"
+          disabled={!stockPreview.canImport||importing} onClick={()=>void commitExcel()}>
+          {importing?'Import en cours…':"Confirmer l'import de stock"}
+        </button>
+      </div>
+    </div>}
+    {!showReception&&!stockPreview&&<>
       <div className="ref-categories">
         {categories.map(category=><span key={category.id} className="ref-category">{category.name}</span>)}
       </div>
@@ -220,7 +242,7 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
       <p className="ref-footnote">Note — « Ramba » n’apparaît jamais ici : ce n’est pas une catégorie d’achat, uniquement une résolution SAV.</p>
     </>}
         </section>
-    {!showProduct&&!showReception&&<div className="ref-footer-action"><button type="button" className="ref-button ref-button--outline"
+    {!showReception&&!stockPreview&&<div className="ref-footer-action"><button type="button" className="ref-button ref-button--outline"
       onClick={()=>onNavigate('transfers')}>Ouvrir les transferts Central → Agent</button></div>}
   </div>;
 }
