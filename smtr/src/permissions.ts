@@ -2,18 +2,18 @@ export type Role = 'admin'|'director'|'manager'|'agent';
 
 export const MODULE_IDS = [
   'system','users','permissions','menus','settings','system_audit',
-  'dashboard','stocks','transfers','sales','debts','cases','cash',
+  'dashboard','products','stocks','transfers','sales','debts','cases','cash',
   'inventory','approvals','reports','supervision','business_settings','audit',
 ] as const;
 export type ModuleId = typeof MODULE_IDS[number];
 
 const PREVIEW_NAV: Record<Role, readonly ModuleId[]> = {
   admin:['system','users','permissions','menus','settings','system_audit'],
-  director:['dashboard','stocks','transfers','sales','debts','cases','cash',
+  director:['dashboard','products','stocks','transfers','sales','debts','cases','cash',
     'inventory','approvals','reports','supervision','business_settings','audit'],
-  manager:['dashboard','stocks','transfers','sales','debts','cases','cash',
+  manager:['dashboard','products','stocks','transfers','sales','debts','cases','cash',
     'inventory','approvals','reports','supervision','business_settings','audit'],
-  agent:['dashboard','sales','stocks','transfers','debts','cash','cases','approvals'],
+  agent:['dashboard','products','sales','stocks','transfers','debts','cash','cases','approvals'],
 };
 
 export function canView(role:Role,module:ModuleId):boolean {
