@@ -20,6 +20,7 @@ export default function SavPage(props:Props){
   const [saleId,setSaleId]=useState('');
   const [defect,setDefect]=useState('');
   const [selected,setSelected]=useState('');
+  const [creating,setCreating]=useState(false);
   const [approvalId,setApprovalId]=useState('');
   const [replacementId,setReplacementId]=useState('');
   const [centralId,setCentralId]=useState('');
@@ -56,7 +57,7 @@ export default function SavPage(props:Props){
         saleId,defect,factoryDefectConfirmed:true,
       });
       setMessage('Dossier SAV Ramba #'+result.case.id+' ouvert. L’IMEI est sorti du stock vendable.');
-      setSaleId('');setDefect('');cases.reload();props.onRefresh();
+      setSaleId('');setDefect('');setCreating(false);cases.reload();props.onRefresh();
     }catch(e){setError(displayError(e,props.onLogout));}finally{setBusy(false);}
   }
   async function start(id:string){
@@ -107,6 +108,7 @@ export default function SavPage(props:Props){
     {message&&<Notice tone="success">{message}</Notice>}
     {(error||cases.error||warehouse.error||approvals.error||sales.error)&&
       <Notice tone="error">{error||cases.error||warehouse.error||approvals.error||sales.error}</Notice>}
+    {!creating&&!current&&<>
     <div className="catalog-metrics">
       <Metric label="DOSSIERS EN COURS" value={active.length}/>
       <Metric label="RÉSOLUS" value={list.filter(x=>x.status==='RESOLVED').length}/>
@@ -116,7 +118,8 @@ export default function SavPage(props:Props){
       <ShieldAlert size={17}/> <strong>Ramba — entrepôt virtuel SAV</strong>.
       Les appareils retournés pour défaut d’usine sont isolés, non vendables et ne constituent jamais une catégorie de marchandises fournisseur.
     </div>
-    {agent&&<Panel title="Déclarer un retour SAV" subtitle="Après vérification du défaut d’usine et du numéro de vente">
+    </>}
+        {agent&&creating&&<Panel action={<SmallButton onClick={()=>setCreating(false)}>Retour à la liste</SmallButton>} title="Déclarer un retour SAV" subtitle="Après vérification du défaut d’usine et du numéro de vente">
       <form className="catalog-form" onSubmit={open}>
         <Field label="Vente d’origine">
           <select value={saleId} required onChange={e=>setSaleId(e.target.value)}>
@@ -133,7 +136,9 @@ export default function SavPage(props:Props){
         <SubmitButton disabled={busy}>{busy?'Enregistrement…':'Ouvrir le dossier SAV'}</SubmitButton>
       </form>
     </Panel>}
-    <Panel title={agent?'Mes dossiers SAV':'Suivi des dossiers SAV'} subtitle="Réception, prise en charge et résolution">
+    {!creating&&!current&&<>
+    <Panel title={agent?'Mes dossiers SAV':'Suivi des dossiers SAV'} subtitle="Réception, prise en charge et résolution"
+      action={agent&&<SmallButton kind="blue" onClick={()=>setCreating(true)}>+ Déclarer un retour SAV</SmallButton>}>
       <div className="catalog-tab-group">
         <button className={'catalog-tab '+(tab==='active'?'active':'')} type="button" onClick={()=>setTab('active')}>En cours</button>
         <button className={'catalog-tab '+(tab==='resolved'?'active':'')} type="button" onClick={()=>setTab('resolved')}>Résolus</button>
@@ -157,7 +162,8 @@ export default function SavPage(props:Props){
               </div>,
           ])}/>}
     </Panel>
-    {!agent&&current&&<Panel title={'Dossier SAV #'+current.id}
+    </>}
+        {!agent&&current&&<Panel title={'Dossier SAV #'+current.id}
       subtitle={current.product+' · IMEI '+current.imeiMasked}>
       <div className="catalog-row"><span>Défaut déclaré</span><strong>{current.defect}</strong></div>
       <div className="catalog-row"><span>État</span><Status label={current.status}/></div>

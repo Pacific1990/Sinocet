@@ -6,7 +6,7 @@ import { addDraft, deleteDraft, listDrafts, type OfflineSaleDraft } from './offl
 import type { Role } from './permissions';
 import ImeiScanner from './ImeiScanner';
 
-type Props={role:Role;token:string|null;userId:string;preview:boolean;refresh:number;onLogout:()=>void;onRefresh:()=>void};
+type Props={role:Role;initialCreate?:boolean;token:string|null;userId:string;preview:boolean;refresh:number;onLogout:()=>void;onRefresh:()=>void};
 type Method='CASH'|'MOBILE_MONEY'|'TRANSFER'|'CREDIT';
 
 export default function SalesPage(props:Props){
@@ -33,7 +33,7 @@ export default function SalesPage(props:Props){
   const [saleId,setSaleId]=useState('');
   const [drafts,setDrafts]=useState<OfflineSaleDraft[]>([]);
   const [offlineBusy,setOfflineBusy]=useState(false);
-  const [showForm,setShowForm]=useState(true);
+  const [showForm,setShowForm]=useState(agent&&Boolean(props.initialCreate));
   const rows=list.data?.items||[];
   const available=stock.data?.items||[];
   const filtered=available;
@@ -141,9 +141,9 @@ export default function SalesPage(props:Props){
       <Metric label="CHIFFRE D’AFFAIRES" value={fcfa(totals.revenue)}/>
       <Metric label="CRÉDITS ACCORDÉS" value={fcfa(totals.credits)}/>
     </div>}
-    {agent&&<Panel title="Nouvelle vente" subtitle="Un IMEI disponible ne peut être vendu qu’une seule fois"
-      action={<SmallButton onClick={()=>setShowForm(v=>!v)}>{showForm?'Réduire':'Nouvelle vente'}</SmallButton>}>
-      {showForm&&<form className="catalog-form" onSubmit={submit}>
+    {agent&&showForm&&<Panel title="Nouvelle vente" subtitle="Un IMEI disponible ne peut être vendu qu’une seule fois"
+      action={<SmallButton onClick={()=>setShowForm(false)}>Retour à la liste</SmallButton>}>
+      <form className="catalog-form" onSubmit={submit}>
         <Field label="Rechercher un produit ou scanner son IMEI">
           <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Nom du produit ou IMEI" autoComplete="off"/>
         </Field>
@@ -209,9 +209,10 @@ export default function SalesPage(props:Props){
           <ShoppingBag size={17}/>{busy?'Enregistrement…':navigator.onLine?'Enregistrer la vente':'Enregistrer un brouillon hors ligne'}
         </SubmitButton>
         <p className="catalog-hint">Le paiement Mobile Money est enregistré après confirmation de l’agent ; aucune opération de débit externe n’est déclenchée automatiquement.</p>
-      </form>}
+      </form>
       {saleId&&<div style={{marginTop:14}}><SmallButton onClick={()=>download(saleId)}><FileText size={16}/> Télécharger le reçu PDF #{saleId}</SmallButton></div>}
     </Panel>}
+    {!showForm&&<>
     {agent&&drafts.length>0&&<Panel title={'Brouillons hors ligne ('+drafts.length+')'} subtitle="Non validés, sans sortie du stock ni reçu">
       {drafts.map(d=><article key={d.requestId} className="catalog-pending-draft">
         <div className="catalog-row">
@@ -229,7 +230,8 @@ export default function SalesPage(props:Props){
       </article>)}
       <p className="catalog-note">Le stock et les prix sont recontrôlés au moment de la validation serveur. Une vente conflictuelle reste un brouillon et doit être résolue.</p>
     </Panel>}
-    <Panel title={agent?'Mes ventes':'Historique des ventes'} subtitle="Transactions réellement enregistrées et contrôlées par l’API">
+    <Panel title={agent?'Mes ventes':'Historique des ventes'} subtitle="Transactions réellement enregistrées et contrôlées par l’API"
+      action={agent&&<SmallButton kind="blue" onClick={()=>setShowForm(true)}>+ Nouvelle vente</SmallButton>}>
       {list.loading?<Loading/>:
         <DataTable headers={['DATE','PRODUIT','MONTANT','CRÉDIT','ÉTAT','REÇU']}
           rows={rows.map(r=>[
@@ -237,6 +239,7 @@ export default function SalesPage(props:Props){
             <Status label={r.status==='COMPLETED'?'Validée':'Annulée'}/>,
             <SmallButton onClick={()=>download(r.id)}><FileText size={15}/> PDF</SmallButton>
           ])}/>}
-    </Panel>
+    </Panel></>}
+
   </div>;
 }

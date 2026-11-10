@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { DataTable, Empty, Field, Loading, Metric, Notice, Panel, SubmitButton, useRemote } from './CatalogueUI';
+import { DataTable, Empty, Field, Loading, Metric, Notice, Panel, SmallButton, SubmitButton, useRemote } from './CatalogueUI';
 import { displayError, fcfa, post, shortDate } from './services';
 import type { Role } from './permissions';
 
@@ -14,6 +14,7 @@ type Closure={id:string;day:string;agent:string;closedAt:string;expectedF:number
 type Props={role:Role;token:string|null;preview:boolean;refresh:number;onLogout:()=>void;onRefresh:()=>void};
 
 export default function CashPage(props:Props){
+  const [showClose,setShowClose]=useState(false);
   const agent=props.role==='agent';
   const request=useRemote<Today>(agent?props.token:null,'/cash/today',props.refresh,props.onLogout);
   const history=useRemote<{closures:Closure[]}>(props.token,'/cash/history',props.refresh,props.onLogout);
@@ -51,7 +52,7 @@ export default function CashPage(props:Props){
         <Metric label="MOBILE MONEY" value={fcfa(expected?.mobileF)}/>
         <Metric label="VIREMENTS" value={fcfa(expected?.transferF)}/>
       </div>
-      <Panel title="Clôture de la caisse" subtitle={request.data?.day||'Journée courante'}>
+      {showClose&&<Panel action={<SmallButton onClick={()=>setShowClose(false)}>Retour à la caisse</SmallButton>} title="Clôture de la caisse" subtitle={request.data?.day||'Journée courante'}>
         {request.loading?<Loading/>:request.data?.closed?
           <Notice tone="success">Caisse clôturée le {shortDate(request.data.closed.closedAt)}.
             Montant déclaré : {fcfa(request.data.closed.declared.totalF)}.
@@ -65,16 +66,17 @@ export default function CashPage(props:Props){
             </div>
             <SubmitButton disabled={busy}>{busy?'Clôture…':'Valider la clôture'}</SubmitButton>
           </form>}
-      </Panel>
-      <Panel title="Mouvements de caisse du jour" subtitle="Encaissements enregistrés côté serveur">
+      </Panel>}
+      {!showClose&&<Panel action={!request.data?.closed&&<SmallButton kind="blue" onClick={()=>setShowClose(true)}>Clôturer la caisse</SmallButton>} title="Mouvements de caisse du jour" subtitle="Encaissements enregistrés côté serveur">
         {request.loading?<Loading/>:<DataTable
           headers={['DATE','TYPE','MODE','MONTANT','RÉFÉRENCE']}
           rows={(request.data?.transactions||[]).map(x=>[
             shortDate(x.createdAt),x.kind,x.method,
             <strong>{x.kind==='REFUND'?'-':''}{fcfa(x.amountF)}</strong>,x.reference||'—',
           ])}/>}
-      </Panel>
+      </Panel>}
     </>}
+    {!showClose&&<>
     <Panel title={agent?'Mes clôtures':'Historique des clôtures'} subtitle="Comparaison montants attendus et déclarés">
       {history.loading?<Loading/>:<DataTable
         headers={['DATE','AGENT','ATTENDU','DÉCLARÉ','ÉCART']}
@@ -84,6 +86,7 @@ export default function CashPage(props:Props){
             {fcfa(x.declaredF-x.expectedF)}
           </span>,
         ])}/>}
-    </Panel>
+    </Panel></>}
+
   </div>;
 }

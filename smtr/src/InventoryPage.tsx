@@ -117,8 +117,9 @@ export default function InventoryPage(props:Props){
       <Metric label="STOCKS GELÉS" value={agents.data?.agents.filter(a=>a.frozen).length||0}/>
       <Metric label="INVENTAIRES EN COURS" value={inventories.data?.inventories.filter(i=>i.status==='IN_PROGRESS').length||0}/>
     </div>
-    <Panel title="Stocks agents" subtitle="Geler ou contrôler un stock précis sans interrompre les autres"
-      action={<SmallButton kind="blue" onClick={()=>setShowStart(x=>!x)}><Boxes size={16}/> + Nouvel inventaire</SmallButton>}>
+    {!detailsSelected&&<>
+    <Panel title={showStart?"Nouvel inventaire":"Stocks agents"} subtitle="Geler ou contrôler un stock précis sans interrompre les autres"
+      action={<SmallButton kind="blue" onClick={()=>setShowStart(x=>!x)}><Boxes size={16}/> {showStart?"Retour à la liste":"+ Nouvel inventaire"}</SmallButton>}>
       {showStart&&<form className="catalog-form catalog-inner-panel" onSubmit={start}>
         <Field label="Stock agent à contrôler">
           <select required value={warehouseId} onChange={e=>setWarehouseId(e.target.value)}>
@@ -130,6 +131,7 @@ export default function InventoryPage(props:Props){
         <p className="catalog-note">Au démarrage, ce stock seulement sera bloqué pour les ventes et les transferts. Les autres agents poursuivent leur activité.</p>
         <SubmitButton disabled={busy||!warehouseId||Boolean(chosen?.frozen)}>Démarrer l’inventaire</SubmitButton>
       </form>}
+      {!showStart&&<>
       {agents.loading?<Loading/>:
         <DataTable headers={['AGENT','STOCK','STOCK ACTUEL','DERNIER INVENTAIRE','ÉTAT','ACTION']}
           rows={(agents.data?.agents||[]).map(a=>[
@@ -150,7 +152,9 @@ export default function InventoryPage(props:Props){
           </SmallButton>
         </div>
       </div>}
+    </>}
     </Panel>
+    {!showStart&&<>
     <Panel title="Historique des inventaires" subtitle="Comparaison stock initial vs réellement compté">
       {inventories.loading?<Loading/>:
         <DataTable headers={['N°','AGENT','DÉMARRAGE','ÉTAT','ACTION']}
@@ -160,7 +164,9 @@ export default function InventoryPage(props:Props){
             <SmallButton onClick={()=>{void loadDetail(inv.id);}}>Détails & comptage</SmallButton>,
           ])}/>}
     </Panel>
-    {detailsSelected&&detail&&<Panel title={'Inventaire #'+detail.id+' — '+detail.agentName}
+    </>}
+    </>}
+        {detailsSelected&&detail&&<Panel action={<SmallButton onClick={()=>{setSelected('');setDetail(null);}}>Retour à la liste</SmallButton>} title={'Inventaire #'+detail.id+' — '+detail.agentName}
       subtitle={detail.status==='IN_PROGRESS'?'Comptage en cours':'Résultats de l’inventaire clôturé'}>
       <form className="catalog-form" onSubmit={close}>
         {detail.lines.length===0&&<Empty>Aucun article actif ou gelé dans le stock au démarrage.</Empty>}
@@ -177,6 +183,17 @@ export default function InventoryPage(props:Props){
                 <span className="catalog-negative">{Number(value)-l.expected}</span>,
             ];
           })}/>
+      {detail.status==='IN_PROGRESS'&&<>
+          <Field label="Note de clôture (facultative)">
+            <textarea rows={2} value={note} maxLength={500} onChange={e=>setNote(e.target.value)}/>
+          </Field>
+          <div className="catalog-actions">
+            <SmallButton onClick={()=>{setSelected('');setDetail(null);}}>Annuler</SmallButton>
+            <SubmitButton disabled={busy||detail.lines.some(l=>counts[l.productId]==='')}>
+              Clôturer le comptage</SubmitButton>
+          </div>
+        </>}
+      </form>
         {detail.status==='CLOSED'&&detail.frozen&&
         detail.lines.some(l=>l.counted!==l.expected)&&!detail.reconciledAt&&
         <div className="catalog-inner-panel">
@@ -203,17 +220,6 @@ export default function InventoryPage(props:Props){
             </SubmitButton>
           </form>
         </div>}
-      {detail.status==='IN_PROGRESS'&&<>
-          <Field label="Note de clôture (facultative)">
-            <textarea rows={2} value={note} maxLength={500} onChange={e=>setNote(e.target.value)}/>
-          </Field>
-          <div className="catalog-actions">
-            <SmallButton onClick={()=>{setSelected('');setDetail(null);}}>Annuler</SmallButton>
-            <SubmitButton disabled={busy||detail.lines.some(l=>counts[l.productId]==='')}>
-              Clôturer le comptage</SubmitButton>
-          </div>
-        </>}
-      </form>
     </Panel>}
   </div>;
 }
