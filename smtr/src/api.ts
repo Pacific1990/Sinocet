@@ -71,7 +71,8 @@ export async function activateOrganization(session:Session,organizationId:string
   return {...session,organizationId,user:{...session.user,role:access.role}};
 }
 export async function login(email:string,password:string,otp?:string):Promise<Session>{
-  const data=await request<{accessToken:string;refreshToken:string;user:{id:number|string;username:string;twoFactorVerified:boolean};enrollmentRequired?:boolean}>('/auth/login',null,{method:'POST',body:JSON.stringify({username:email,password,workspace:'SMTR',...(otp?{otp}:{})})});
+  const data=await request<{accessToken:string;refreshToken:string;user:{id:number|string;username:string;twoFactorVerified:boolean};enrollmentRequired?:boolean;otpRequired?:boolean}>('/auth/login',null,{method:'POST',body:JSON.stringify({username:email,password,workspace:'SMTR',...(otp?{otp}:{})})});
+  if(data.otpRequired)throw new MfaCodeRequired();
   if(data.enrollmentRequired)throw new MfaEnrollmentRequired();
   if(!data?.accessToken||!data.refreshToken||!data.user)throw new ApiError('Authentification POS invalide.',502);
   return sessionFromPOS(data);
@@ -163,6 +164,7 @@ export async function logout(token:string){
 }
 
 export type MfaEnrollment={secret:string;enrollmentToken:string;uri:string};
+export class MfaCodeRequired extends Error {constructor(){super("Saisissez le code de votre application d’authentification.");}}
 export class MfaEnrollmentRequired extends Error {constructor(){super('Configurez la double authentification POS.');}}
 export function setupMfa(username:string,password:string){return request<MfaEnrollment>('/auth/mfa/setup',null,{method:'POST',body:JSON.stringify({username,password})});}
 export async function confirmMfa(enrollmentToken:string,otp:string):Promise<Session>{

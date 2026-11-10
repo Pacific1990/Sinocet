@@ -8,7 +8,7 @@ import {
   ListChecks, SlidersHorizontal, BarChart3, X,
   type LucideIcon,
 } from 'lucide-react';
-import { login, activateOrganization, setupMfa, confirmMfa, MfaEnrollmentRequired, type MfaEnrollment, logout as logoutRemote, type Session } from './api';
+import { login, activateOrganization, setupMfa, confirmMfa, MfaCodeRequired, MfaEnrollmentRequired, type MfaEnrollment, logout as logoutRemote, type Session } from './api';
 import { ApiError } from './api';
 import { get, post } from './services';
 import { isModule, isRole, roleModules, type ModuleId, type Role } from './permissions';
@@ -69,6 +69,7 @@ function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [otp,setOtp]=useState('');
+  const [otpRequired,setOtpRequired]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   async function submit(event:FormEvent){
@@ -78,7 +79,7 @@ function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
       if(pending){onSuccess(await activateOrganization(pending,organizationId));return;}
       let session:Session;
       try{session=enrollment?await confirmMfa(enrollment.enrollmentToken,otp.trim()):await login(email.trim(),password,otp.trim()||undefined);}
-      catch(e){if(e instanceof MfaEnrollmentRequired){setEnrollment(await setupMfa(email.trim(),password));setPassword('');setOtp('');return;}throw e;}
+      catch(e){if(e instanceof MfaCodeRequired){setOtpRequired(true);return;}if(e instanceof MfaEnrollmentRequired){setEnrollment(await setupMfa(email.trim(),password));setPassword('');setOtp('');return;}throw e;}
       setEnrollment(null);
       setPassword('');setOtp('');
       if(!session.organizationId){setPending(session);setOrganizationId(session.organizations[0].id);}else onSuccess(session);
@@ -111,15 +112,15 @@ function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
           {pending?<><label htmlFor="smtr-organization">Entreprise POS</label><select id="smtr-organization" required value={organizationId} onChange={e=>setOrganizationId(e.target.value)}>{pending.organizations.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></>:<>
           <label htmlFor="smtr-email">Adresse e-mail professionnelle</label>
           <input id="smtr-email" type="email" autoComplete="username" inputMode="email"
-            required={!enrollment} disabled={!!enrollment} value={email} onChange={e=>setEmail(e.target.value)} placeholder="nom@entreprise.ci"/>
+            required={!enrollment} disabled={!!enrollment} value={email} onChange={e=>{setEmail(e.target.value);setOtpRequired(false);setOtp('');}} placeholder="nom@entreprise.ci"/>
           <label htmlFor="smtr-password">Mot de passe</label>
           <input id="smtr-password" type="password" autoComplete="current-password"
-            required={!enrollment} disabled={!!enrollment} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Votre mot de passe"/>
-          <label htmlFor="smtr-otp">Code 2FA — Direction / Administrateur</label>
+            required={!enrollment} disabled={!!enrollment} value={password} onChange={e=>{setPassword(e.target.value);setOtpRequired(false);setOtp('');}} placeholder="Votre mot de passe"/>
+          {(enrollment||otpRequired)&&<><label htmlFor="smtr-otp">Code de double authentification</label>
           <input id="smtr-otp" type="text" inputMode="numeric" autoComplete="one-time-code"
             pattern="[0-9]{6}" maxLength={6} value={otp}
             onChange={e=>setOtp(e.target.value.replace(/\D/g,''))}
-            placeholder="6 chiffres lorsque requis"/>
+            placeholder="Code à 6 chiffres" required autoFocus/></>}
           </>}
           {error&&<p className="form-error" role="alert"><AlertCircle size={17}/>{error}</p>}
           <button className="primary-button" type="submit" disabled={busy}>
