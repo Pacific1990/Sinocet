@@ -149,6 +149,8 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
         <div><h2>{showProduct?"Nouvelle référence produit":showReception?"Réceptionner un lot":"Stock Central"}{warehouses.length===1?' — '+warehouses[0].name:''}</h2>
           <p>Consultation et réception des arrivages fournisseurs</p></div>
         {!showProduct&&!showReception&&<div className="ref-actions">
+          <a className="ref-button ref-button--outline" href={import.meta.env.BASE_URL+"modele-import-stock.xlsx"}
+            download="modele-import-stock.xlsx">Télécharger le modèle Excel</a>
           <button type="button" className="ref-button ref-button--outline"
             disabled={preview||importing||!warehouseId} onClick={()=>inputRef.current?.click()}>
             {importing?'Import en cours…':'Importer Excel'}
