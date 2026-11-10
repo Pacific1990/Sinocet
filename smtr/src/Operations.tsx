@@ -14,6 +14,7 @@ import ImeiScanner from './ImeiScanner';
 
 type Props = {
   screen: 'stocks' | 'transfers';
+  initialCreate?: boolean;
   role: Role;
   token: string | null;
   preview: boolean;
@@ -247,7 +248,7 @@ function AgentStock({token,preview,onLogout,onNavigate}:Props) {
   </div>;
 }
 
-function ManagerTransfers({token,preview,onLogout}:Props) {
+function ManagerTransfers({token,preview,onLogout,initialCreate}:Props) {
   const [warehouses,setWarehouses]=useState<CentralWarehouse[]>([]);
   const [agents,setAgents]=useState<AgentDestination[]>([]);
   const [transfers,setTransfers]=useState<TransferRecord[]>([]);
@@ -264,7 +265,7 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
   const [reload,setReload]=useState(0);
   const requestId=useRef(crypto.randomUUID());
   const [reconcileId,setReconcileId]=useState('');
-  const [showTransfer,setShowTransfer]=useState(false);
+  const [showTransfer,setShowTransfer]=useState(Boolean(initialCreate));
   const [reconcileItems,setReconcileItems]=useState<Array<{id:string;imeiMasked:string;productName:string}>>([]);
   const [returned,setReturned]=useState<string[]>([]);
   const [reconcileReason,setReconcileReason]=useState('');

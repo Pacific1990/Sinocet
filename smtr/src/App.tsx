@@ -213,9 +213,10 @@ function Workspace({session,preview,onLogout}:{
     };
   },[session,online]);
 
-  function navigate(next:ModuleId){
+  const [openCreate,setOpenCreate]=useState(false);
+  function navigate(next:ModuleId,create=false){
     if(!allowed.includes(next))return;
-    setScreen(next);setMenuOpen(false);
+    setOpenCreate(create);setScreen(next);setMenuOpen(false);
   }
   const bottomPreferences=role==='admin'?
     ['system','users','permissions','menus','settings'] as ModuleId[]:
@@ -231,8 +232,8 @@ function Workspace({session,preview,onLogout}:{
     }
     switch(screen){
       case 'dashboard':return <DashboardPage {...common} role={role} onNavigate={navigate}/>;
-      case 'stocks':case 'transfers':return <Operations {...common} screen={screen} role={role} onNavigate={navigate}/>;
-      case 'sales':return <SalesPage {...common} role={role} userId={session?.user.id||''} onRefresh={refreshData}/>;
+      case 'stocks':case 'transfers':return <Operations {...common} screen={screen} role={role} initialCreate={openCreate} onNavigate={navigate}/>;
+      case 'sales':return <SalesPage {...common} role={role} initialCreate={openCreate} userId={session?.user.id||''} onRefresh={refreshData}/>;
       case 'debts':return <DebtsPage {...common} role={role} onRefresh={refreshData}/>;
       case 'cash':return <CashPage {...common} role={role} onRefresh={refreshData}/>;
       case 'cases':return <SavPage {...common} role={role} onRefresh={refreshData} onNavigate={navigate}/>;

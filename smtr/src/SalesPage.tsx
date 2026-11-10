@@ -6,7 +6,7 @@ import { addDraft, deleteDraft, listDrafts, type OfflineSaleDraft } from './offl
 import type { Role } from './permissions';
 import ImeiScanner from './ImeiScanner';
 
-type Props={role:Role;token:string|null;userId:string;preview:boolean;refresh:number;onLogout:()=>void;onRefresh:()=>void};
+type Props={role:Role;initialCreate?:boolean;token:string|null;userId:string;preview:boolean;refresh:number;onLogout:()=>void;onRefresh:()=>void};
 type Method='CASH'|'MOBILE_MONEY'|'TRANSFER'|'CREDIT';
 
 export default function SalesPage(props:Props){
@@ -33,7 +33,7 @@ export default function SalesPage(props:Props){
   const [saleId,setSaleId]=useState('');
   const [drafts,setDrafts]=useState<OfflineSaleDraft[]>([]);
   const [offlineBusy,setOfflineBusy]=useState(false);
-  const [showForm,setShowForm]=useState(false);
+  const [showForm,setShowForm]=useState(agent&&Boolean(props.initialCreate));
   const rows=list.data?.items||[];
   const available=stock.data?.items||[];
   const filtered=available;

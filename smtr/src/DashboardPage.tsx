@@ -6,7 +6,7 @@ import type { StockCategory } from './api';
 
 type MetricValue={id:string;label:string;value:string;hint?:string};
 type Overview={ranking:Array<{id:string;name:string;salesCount:number;turnoverF:number;activeStock:number}>;alerts:Array<{id:string;kind:string;message:string;module:ModuleId}>};
-type Props={role:Role;token:string|null;preview:boolean;onLogout:()=>void;onNavigate:(id:ModuleId)=>void;refresh:number};
+type Props={role:Role;token:string|null;preview:boolean;onLogout:()=>void;onNavigate:(id:ModuleId,create?:boolean)=>void;refresh:number};
 
 export default function DashboardPage({role,token,preview,onLogout,onNavigate,refresh}:Props){
   const metrics=useRemote<{metrics:MetricValue[]}>(token,'/dashboard/summary',refresh,onLogout);
@@ -32,7 +32,7 @@ export default function DashboardPage({role,token,preview,onLogout,onNavigate,re
         <span>{alert.message}</span><button className="catalog-link" type="button" onClick={()=>onNavigate(alert.module)}>Voir</button>
       </div>)}
       <div className="catalog-tiles">
-        <button className="catalog-tile" type="button" onClick={()=>onNavigate('sales')}><ShoppingBag size={19}/> Nouvelle vente</button>
+        <button className="catalog-tile" type="button" onClick={()=>onNavigate('sales',true)}><ShoppingBag size={19}/> Nouvelle vente</button>
         <button className="catalog-tile" type="button" onClick={()=>onNavigate('transfers')}><ClipboardCheck size={19}/> Valider réception</button>
         <button className="catalog-tile" type="button" onClick={()=>onNavigate('debts')}><CreditCard size={19}/> Mes crédits</button>
         <button className="catalog-tile" type="button" onClick={()=>onNavigate('cash')}><Wallet size={19}/> Ma caisse</button>
@@ -59,7 +59,7 @@ export default function DashboardPage({role,token,preview,onLogout,onNavigate,re
           }/>:<Empty>Aucune activité d’agent à afficher.</Empty>}
         <div className="catalog-actions" style={{marginTop:16}}>
           <button className="ref-button ref-button--blue" type="button"
-            onClick={()=>onNavigate(role==='manager'?'transfers':'supervision')}>
+            onClick={()=>onNavigate(role==='manager'?'transfers':'supervision',role==='manager')}>
             {role==='manager'?'+ Nouveau transfert':'Voir la cartographie du stock'}
           </button>
           {role==='manager'&&<button className="ref-button ref-button--outline" type="button" onClick={()=>onNavigate('inventory')}>Geler un stock agent</button>}
