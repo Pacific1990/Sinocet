@@ -79,6 +79,10 @@ export default function ProductsPage(props:Props){
   }
   async function saveReference(event:FormEvent){
     event.preventDefault();if(!props.token||!canManage||busy)return;
+    if(referenceKind==='characteristics'&&!director){
+      setError('Seule la Direction peut ajouter une caractéristique au référentiel partagé.');
+      return;
+    }
     setBusy(true);setError('');setNotice('');
     try{
       await post('/catalog/references/'+referenceKind,props.token,{
@@ -230,7 +234,7 @@ export default function ProductsPage(props:Props){
               onChange={e=>setCharacteristic(c.id,e.target.value)}/>
           </Field>)}
         </div>
-        {!characteristics.length&&<p className="catalog-note">Aucune caractéristique définie. Utilisez le menu Référentiels produits pour en créer.</p>}
+        {!characteristics.length&&<p className="catalog-note">Aucune caractéristique globale définie. La Direction peut ajouter une définition dans Référentiels produits.</p>}
         <Field label="Description"><textarea rows={3} maxLength={1000} value={form.description}
           onChange={e=>setField('description',e.target.value)}/></Field>
         {selected&&<p className="catalog-note">Un changement de suivi IMEI/quantité est bloqué si des unités ont déjà été réceptionnées.</p>}
@@ -240,8 +244,9 @@ export default function ProductsPage(props:Props){
       </form>
     </Panel>}
     {view==='references'&&<Panel title={heading}
-      subtitle="Référentiels réutilisables par l'ensemble des produits de l'entreprise"
+      subtitle="Marques et modèles par entreprise ; caractéristiques globales partagées"
       action={backAction}>
+      <p className="catalog-note">Le référentiel des caractéristiques est commun à toutes les entreprises. Seule la Direction peut y ajouter des définitions ; aucune modification ou suppression d'une caractéristique partagée n'est proposée.</p>
       <form className="catalog-form product-form" onSubmit={saveReference}>
         <div className="product-form-grid">
           <Field label="Type de référentiel">
@@ -249,7 +254,7 @@ export default function ProductsPage(props:Props){
               onChange={e=>setReferenceKind(e.target.value as 'brands'|'models'|'characteristics')}>
               <option value="brands">Marque</option>
               <option value="models">Modèle</option>
-              <option value="characteristics">Caractéristique</option>
+              <option value="characteristics" disabled={!director}>Caractéristique globale (Direction)</option>
             </select>
           </Field>
           {referenceKind==='models'&&<Field label="Marque parente *">
@@ -273,7 +278,7 @@ export default function ProductsPage(props:Props){
       <h3>Modèles</h3>
       <DataTable headers={['MARQUE','MODÈLE','DESCRIPTION']}
         rows={models.map(m=>[brands.find(b=>b.id===m.brandId)?.name||'—',m.name,m.description||'—'])}/>
-      <h3>Caractéristiques</h3>
+      <h3>Caractéristiques globales</h3>
       <DataTable headers={['NOM','DESCRIPTION']}
         rows={characteristics.map(c=>[c.name,c.description||'—'])}/>
     </Panel>}
