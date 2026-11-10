@@ -93,8 +93,9 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
         method:'POST',headers:{Authorization:'Bearer '+token},body:form,credentials:'omit',cache:'no-store',
       });
       const data=await response.json();
-      if(!response.ok)throw new Error(data.message||'Import Excel impossible.');
-      setNotice(data.import.quantity+' IMEI importés. '+data.import.skuCount+' référence(s) concernée(s).');
+      if(!response.ok||!data.success||!data.data?.import)throw new Error(data.message||'Import Excel impossible.');
+      const imported=data.data.import;
+      setNotice(imported.quantity+' IMEI importés. '+imported.skuCount+' référence(s) concernée(s).');
       setReload(x=>x+1);
     }catch(e){setError(displayError(e,onLogout));}
     finally{setImporting(false);if(inputRef.current)inputRef.current.value='';}
