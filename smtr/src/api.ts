@@ -105,7 +105,7 @@ export type StockCategory = {
   id:string; name:string; available:number; minimumLevel:number; location:string; status:string;
 };
 export type CentralWarehouse = {id:string;name:string;location:string | null};
-export type StockProduct = {id:string;name:string;sku:string;category:string;minimumLevel:number};
+export type StockProduct = {id:string;name:string;sku:string;category:string;minimumLevel:number;trackingMode?:string};
 export type StockItem = {id:string;imeiMasked:string;productName:string;location:string};
 export type AgentDestination = {id:string;name:string;warehouseId:string;warehouseName:string};
 export type TransferRecord = {id:string;status:string;agentName:string;sentAt:string;quantity:number};
