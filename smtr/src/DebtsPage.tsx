@@ -17,7 +17,6 @@ export default function DebtsPage(props:Props){
   const [showLimit,setShowLimit]=useState(false);
   const [name,setName]=useState('');
   const [phone,setPhone]=useState('');
-  const [agentId,setAgentId]=useState('');
   const [selected,setSelected]=useState('');
   const [received,setReceived]=useState('');
   const [method,setMethod]=useState('CASH');
@@ -40,14 +39,13 @@ export default function DebtsPage(props:Props){
   }),[available,filter,search]);
   const totals=debts.data?.summary;
   const selectedDebt=available.find(d=>d.id===selected);
-  const uniqueAgents=Array.from(new Map((clients.data?.customers||[]).map(x=>[x.agentId,x.agentName])).entries());
 
   async function createCustomer(event:FormEvent){
-    event.preventDefault();if(!props.token||busy)return;
+    event.preventDefault();if(!agent||!props.token||busy)return;
     setBusy(true);setError('');setMessage('');
     try{
       await post('/customers',props.token,{
-        name,phone:phone||null,...(agent?{}:{agentId})
+        name,phone:phone||null
       });
       setName('');setPhone('');setShowClient(false);
       setMessage('Client ajouté. Le plafond de crédit reste à zéro jusqu’à validation du responsable.');
@@ -116,20 +114,14 @@ export default function DebtsPage(props:Props){
     </div>
     {!selectedDebt&&!showLimit&&<>
     <Panel title={showClient?"Nouveau client":agent?"Mes crédits clients":"Suivi des crédits"} subtitle="Créances et échéances, selon votre périmètre"
-      action={<>{!agent&&!showClient&&<SmallButton onClick={()=>setShowLimit(true)}>Plafonds de crédit</SmallButton>}<SmallButton kind="blue" onClick={()=>setShowClient(x=>!x)}>{showClient?"Retour à la liste":"+ Ajouter un client"}</SmallButton></>}>
+      action={<>{!agent&&!showClient&&<SmallButton onClick={()=>setShowLimit(true)}>Plafonds de crédit</SmallButton>}{agent&&<SmallButton kind="blue" onClick={()=>setShowClient(x=>!x)}>{showClient?"Retour à la liste":"+ Ajouter un client"}</SmallButton>}</>}>
       {showClient&&<form className="catalog-form catalog-inner-panel" onSubmit={createCustomer}>
         <h3 className="catalog-card-title">Nouveau client</h3>
         <div className="catalog-form-row">
           <Field label="Nom du client"><input required minLength={2} maxLength={160} value={name} onChange={e=>setName(e.target.value)}/></Field>
           <Field label="Téléphone (facultatif)">
-            <input type="tel" maxLength={35} value={phone} onChange={e=>setPhone(e.target.value)}/>
+            <input type="tel" minLength={6} maxLength={30} value={phone} onChange={e=>setPhone(e.target.value)}/>
           </Field>
-          {!agent&&<Field label="Agent référent">
-            <select required value={agentId} onChange={e=>setAgentId(e.target.value)}>
-              <option value="">Sélectionner un agent</option>
-              {uniqueAgents.map(([id,label])=><option key={id} value={id}>{label}</option>)}
-            </select>
-          </Field>}
         </div>
         <SubmitButton disabled={busy}>{busy?'Enregistrement…':'Enregistrer le client'}</SubmitButton>
       </form>}
