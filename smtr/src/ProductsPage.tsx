@@ -79,8 +79,8 @@ export default function ProductsPage(props:Props){
   }
   async function saveReference(event:FormEvent){
     event.preventDefault();if(!props.token||!canManage||busy)return;
-    if(referenceKind==='characteristics'&&!director){
-      setError('Seule la Direction peut ajouter une caractéristique au référentiel partagé.');
+    if(!director){
+      setError('Seule la Direction peut enrichir les référentiels globaux.');
       return;
     }
     setBusy(true);setError('');setNotice('');
@@ -244,17 +244,17 @@ export default function ProductsPage(props:Props){
       </form>
     </Panel>}
     {view==='references'&&<Panel title={heading}
-      subtitle="Marques et modèles par entreprise ; caractéristiques globales partagées"
+      subtitle="Marques, modèles et caractéristiques : référentiels globaux partagés"
       action={backAction}>
-      <p className="catalog-note">Le référentiel des caractéristiques est commun à toutes les entreprises. Seule la Direction peut y ajouter des définitions ; aucune modification ou suppression d'une caractéristique partagée n'est proposée.</p>
-      <form className="catalog-form product-form" onSubmit={saveReference}>
+      <p className="catalog-note">Ces trois référentiels sont communs à toutes les entreprises. La Direction peut ajouter des définitions ; aucune modification ou suppression d'une référence partagée n'est proposée.</p>
+      {director&&<form className="catalog-form product-form" onSubmit={saveReference}>
         <div className="product-form-grid">
           <Field label="Type de référentiel">
             <select value={referenceKind}
               onChange={e=>setReferenceKind(e.target.value as 'brands'|'models'|'characteristics')}>
-              <option value="brands">Marque</option>
-              <option value="models">Modèle</option>
-              <option value="characteristics" disabled={!director}>Caractéristique globale (Direction)</option>
+              <option value="brands">Marque globale</option>
+              <option value="models">Modèle global</option>
+              <option value="characteristics">Caractéristique globale</option>
             </select>
           </Field>
           {referenceKind==='models'&&<Field label="Marque parente *">
@@ -271,11 +271,11 @@ export default function ProductsPage(props:Props){
         <div className="ref-form-actions">
           <SubmitButton disabled={busy}>{busy?'Enregistrement…':'Ajouter la référence'}</SubmitButton>
         </div>
-      </form>
-      <h3>Marques</h3>
+      </form>}
+      <h3>Marques globales</h3>
       <DataTable headers={['MARQUE','DESCRIPTION']}
         rows={brands.map(b=>[b.name,b.description||'—'])}/>
-      <h3>Modèles</h3>
+      <h3>Modèles globaux</h3>
       <DataTable headers={['MARQUE','MODÈLE','DESCRIPTION']}
         rows={models.map(m=>[brands.find(b=>b.id===m.brandId)?.name||'—',m.name,m.description||'—'])}/>
       <h3>Caractéristiques globales</h3>
