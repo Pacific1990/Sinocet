@@ -6,7 +6,7 @@
 - brands : marques propres à l'entreprise (name, description, active, auteur et dates).
 - models : modèles propres à l'entreprise, rattachés à une marque via brand_id.
 - characteristics : définitions de caractéristiques réutilisables (name et description).
-- products_characteristics : une valeur textuelle par caractéristique et par produit, en clé étrangère et sous le contrôle de l'entreprise.
+- products_characteristics : association (product_id, characteristic_id, value_text), sans organization_id redondant. Unicité sur (product_id, characteristic_id) ; l'entreprise est obtenue via products.organization_id, et l'API vérifie que la caractéristique relève de la même entreprise.
 - suppliers : table existante du POS réutilisée. Les réceptions pointent vers items.supplier_id, jamais vers un nom libre.
 
 Les caractéristiques ne sont pas limitées à l'électronique : matière, couleur, dimensions, RAM, taille, conditionnement, etc., sont des définitions de l'entreprise, pas des colonnes obligatoires de products.
