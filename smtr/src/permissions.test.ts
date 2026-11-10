@@ -13,10 +13,12 @@ describe('SMTR preview role navigation — server access governs production',()=
     expect(canView('director','business_settings')).toBe(true);
     expect(canView('director','users')).toBe(false);
     expect(canView('manager','inventory')).toBe(true);
+    expect(canView('manager','products')).toBe(true);
     expect(canView('manager','users')).toBe(false);
   });
   it('shows only field operations to an agent',()=>{
     expect(canView('agent','sales')).toBe(true);
+    expect(canView('agent','products')).toBe(true);
     expect(canView('agent','approvals')).toBe(true);
     expect(canView('agent','permissions')).toBe(false);
     expect(canView('agent','reports')).toBe(false);
