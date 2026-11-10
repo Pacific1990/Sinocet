@@ -11,7 +11,7 @@ type Person={id:string;name:string;email:string;role:string;active:boolean;has2f
 type Role={id:string;code:string;name:string;description:string;permissionsCount:number;editable:boolean};
 type Permission={id:string;code:string;name:string;description:string;category:'system'|'business';editableFor:string[]};
 type Menu={id:string;code:string;name:string;permission:string;active:boolean;defaultSort:number;roles:Array<{role:string;visible:boolean;sortOrder:number}>};
-type Setting={key:string;value:number|string;updatedAt:string};
+type Setting={key:string;value:number|string|boolean;updatedAt:string};
 type Audit={id:string;actor:string;action:string;entity:string;occurredAt:string};
 
 async function save<T>(path:string,token:string,body:unknown):Promise<T>{
@@ -20,6 +20,7 @@ async function save<T>(path:string,token:string,body:unknown):Promise<T>{
 const roleNames:Record<string,string>={admin:'Administrateur',director:'Direction',manager:'Manager',agent:'Agent'};
 const editRoles=['director','manager','agent'];
 const descriptions:Record<string,string>={
+  'security.require_2fa':'Exiger la double authentification pour les profils Administrateur et Direction',
   'company.name':'Dénomination affichée dans les espaces SMTR',
   'alerts.transit_days':'Nombre de jours avant une alerte de transfert en retard',
   'alerts.sav_days':'Nombre de jours avant une alerte de dossier SAV',
@@ -303,10 +304,11 @@ function AdminSettings(props:Props){
     const old=request.data?.settings.find(x=>x.key===key);
     if(!old)return;
     const raw=current[key]||'';
-    const value=typeof old.value==='number'?Number(raw):raw;
+    const value=typeof old.value==='boolean'?raw==='true':typeof old.value==='number'?Number(raw):raw;
     setBusy(key);setError('');setMessage('');
     try{
       await save('/system/settings/'+encodeURIComponent(key),props.token,{value});
+      if(key==='security.require_2fa'&&value===true){props.onLogout();return;}
       setMessage('Paramètre '+key+' mis à jour.');request.reload();
     }catch(e){setError(displayError(e,props.onLogout));}finally{setBusy(null);}
   }
@@ -319,9 +321,14 @@ function AdminSettings(props:Props){
           <div className="catalog-inner-panel" key={item.key}>
             <div className="catalog-form-row" style={{alignItems:'end'}}>
               <Field label={item.key+' · '+(descriptions[item.key]||'Paramètre')}>
-                <input type={typeof item.value==='number'?'number':'text'}
+                {typeof item.value==='boolean'?
+                  <select value={current[item.key]??String(item.value)} onChange={e=>setCurrent(s=>({...s,[item.key]:e.target.value}))}>
+                    <option value="true">Obligatoire</option>
+                    <option value="false">Facultative</option>
+                  </select>:
+                  <input type={typeof item.value==='number'?'number':'text'}
                   value={current[item.key]??String(item.value)} onChange={e=>setCurrent(s=>({...s,[item.key]:e.target.value}))}
-                  min={typeof item.value==='number'?0:undefined}/>
+                  min={typeof item.value==='number'?0:undefined}/>}
               </Field>
               <SmallButton kind="blue" disabled={Boolean(busy)||String(item.value)===(current[item.key]??'')}
                 onClick={()=>submit(item.key)}>Enregistrer</SmallButton>
