@@ -1,33 +1,41 @@
-# Catalogue produits et import Excel SMTR
+# SMTR : catalogue, caractéristiques et import Excel
 
-Le menu Produits gère les fiches commerciales (une référence SKU par variante). Le menu Stocks reçoit les unités physiques. Les formulaires sont séparés des listes.
+## Modèle produit générique
 
-Une fiche contient nom, catégorie, SKU, marque, modèle, variante, couleur, stockage, RAM, garantie, description, seuil et suivi individual (IMEI) ou standard (quantité). La Direction seule peut écrire prix et coût. Aucun coût d'achat n'est renvoyé dans le catalogue.
+- products : SKU, nom, description, catégorie, suivi et seuil ; brand_id et model_id facultatifs.
+- brands : marques propres à l'entreprise (name, description, active, auteur et dates).
+- models : modèles propres à l'entreprise, rattachés à une marque via brand_id.
+- characteristics : définitions de caractéristiques réutilisables (name et description).
+- products_characteristics : une valeur textuelle par caractéristique et par produit, en clé étrangère et sous le contrôle de l'entreprise.
+- suppliers : table existante du POS réutilisée. Les réceptions pointent vers items.supplier_id, jamais vers un nom libre.
 
-## Modèle Excel
+Les caractéristiques ne sont pas limitées à l'électronique : matière, couleur, dimensions, RAM, taille, conditionnement, etc., sont des définitions de l'entreprise, pas des colonnes obligatoires de products.
 
-Le bouton Télécharger le modèle Excel télécharge un classeur de trois feuilles :
+## Écrans
 
-- PRODUITS : ACTION (CREER ou MODIFIER), SKU, NOM, CATEGORIE et caractéristiques ; aucune mise à jour implicite.
-- STOCK : SKU, IMEI, QUANTITE, EMPLACEMENT, FOURNISSEUR, REFERENCE_RECEPTION et DATE_RECEPTION.
-- INSTRUCTIONS : validation, limites et droits.
+Produits -> Marques, modèles et caractéristiques : référentiels réutilisables ; création Manager ou Direction.
+Produits -> Nouveau produit : sélection des références existantes, puis caractéristiques dynamiques.
+Stocks -> Réceptionner : sélection du fournisseur existant (code et nom), puis IMEI ou quantité selon le mode de suivi.
 
-individual : 1 IMEI de 15 ou 16 chiffres au format texte par ligne. standard : IMEI vide et quantité positive. Prévisualisation obligatoire avant confirmation. Le serveur recontrôle tout au moment de l'import, en transaction.
+Le coût d'achat et les prix ne sont modifiables que par la Direction. L'Agent peut consulter les produits actifs, sans voir les coûts.
 
-Limites : fichier XLSX jusqu'à 2 Mo, 500 lignes et 500 unités par import de stock. L'ancien fichier statique du dépôt reste pour compatibilité ; les boutons utilisent la génération dynamique API.
+## Import Excel généré via API
 
-## Accès
+Feuilles :
+1. PRODUITS : action CREER/MODIFIER, SKU, nom, catégorie, marque, modèle et données commerciales ;
+2. CARACTERISTIQUES : SKU, CARACTERISTIQUE, VALEUR ; une ligne par caractéristique ;
+3. STOCK : SKU, IMEI, QUANTITE, EMPLACEMENT, CODE_FOURNISSEUR, REFERENCE_RECEPTION, DATE_RECEPTION ;
+4. INSTRUCTIONS : règles et limites.
 
-Agent : consultation des produits actifs, sans quantités globales ni coûts.
-Manager : fiches et réceptions, sans coût d'achat.
-Direction : fiches, prix et coûts.
-Administrateur : permissions/menus, sans accès direct aux données métier.
+Les marques, modèles et définitions de caractéristiques doivent être créés avant import. Le code fournisseur doit correspondre à un enregistrement actif de suppliers propre à l'entreprise, sans création implicite.
+
+Les prévisualisations signalent les erreurs, les doublons, les références manquantes. Tout import est transactionnel et revérifié lors de la confirmation. Le modèle statique historique reste présent mais les boutons téléchargent le classeur généré par POS.
 
 ## Déploiement
 
-1. Sauvegarder une base POS de recette, puis installer les migrations POS (incluant 20261110000200_smtr_catalogue_details).
-2. Tester API, permissions, transferts et Excel.
-3. Déployer le frontend SMTR seulement lorsque l'API est prête.
-4. Réaliser les quatre parcours QA sur l'environnement cible.
+1. Sauvegarder une base de recette POS, exécuter migrations 20261110000200 et 20261110000300 et vérifier les FK.
+2. Vérifier l'éventuelle reprise des anciennes colonnes libres (elles ne sont pas supprimées sans vérification).
+3. Exécuter tests unitaires, intégration, et parcours Playwright des quatre rôles.
+4. Déployer d'abord POS puis SMTR, uniquement après validation.
 
-Contrainte historique : SKU unique globalement dans POS, et non encore par entreprise. Les produits standard utilisent des unités internes identifiées individuellement. Aucun déploiement production n'est effectué par cette PR.
+Aucune fusion ni mise en production n'est effectuée par ces changements.
