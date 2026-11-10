@@ -74,7 +74,7 @@ export default function SalesPage(props:Props){
   }
 
   async function submit(event:FormEvent){
-    event.preventDefault();if(!props.token||busy||!item)return;
+    event.preventDefault();if(!props.token||busy||!item||!customerId)return;
     setBusy(true);setError('');setMessage('');setSaleId('');
     try{
       if(!navigator.onLine){
@@ -161,6 +161,14 @@ export default function SalesPage(props:Props){
           <strong>{item.priceF===null?'À définir par la Direction':fcfa(total)}</strong>
           {selectedDiscount&&<small>Remise : {selectedDiscount.discountPercent}%</small>}
         </div>}
+        <Field label="Client">
+          <select required value={customerId} onChange={e=>setCustomerId(e.target.value)}>
+            <option value="">Sélectionner un client</option>
+            {customers.data?.customers.map(c=><option key={c.id} value={c.id}>
+              {c.name} · plafond {fcfa(c.creditLimitF)} · dû {fcfa(c.balanceF)}
+            </option>)}
+          </select>
+        </Field>
         <div className="catalog-form-row">
           <Field label="Mode de paiement">
             <select value={method} onChange={e=>{setMethod(e.target.value as Method);setRequestId(validUuid());}}>
@@ -175,14 +183,6 @@ export default function SalesPage(props:Props){
         </div>
         {method==='CREDIT'&&<>
           <div className="catalog-form-row">
-            <Field label="Client débiteur">
-              <select required value={customerId} onChange={e=>setCustomerId(e.target.value)}>
-                <option value="">Sélectionner un client</option>
-                {customers.data?.customers.map(c=><option key={c.id} value={c.id}>
-                  {c.name} · plafond {fcfa(c.creditLimitF)} · dû {fcfa(c.balanceF)}
-                </option>)}
-              </select>
-            </Field>
             <Field label="Échéance de paiement"><input type="date" required value={dueDate} onChange={e=>setDueDate(e.target.value)}/></Field>
             <Field label="Montant encaissé immédiatement (FCFA)">
               <input type="number" min={0} max={total} value={paid} required onChange={e=>setPaid(e.target.value)}/>
@@ -204,8 +204,8 @@ export default function SalesPage(props:Props){
             {discounts.map(a=><option key={a.id} value={a.id}>Validation #{a.id} - {a.discountPercent}%</option>)}
           </select>
         </Field>
-        <SubmitButton disabled={busy||!item||item.priceF===null||item.priceF<=0||
-          method==='CREDIT'&&(!dueDate||!customerId||!(remaining>0))}>
+        <SubmitButton disabled={busy||!item||!customerId||item.priceF===null||item.priceF<=0||
+          method==='CREDIT'&&(!dueDate||!(remaining>0))}>
           <ShoppingBag size={17}/>{busy?'Enregistrement…':navigator.onLine?'Enregistrer la vente':'Enregistrer un brouillon hors ligne'}
         </SubmitButton>
         <p className="catalog-hint">Le paiement Mobile Money est enregistré après confirmation de l’agent ; aucune opération de débit externe n’est déclenchée automatiquement.</p>
