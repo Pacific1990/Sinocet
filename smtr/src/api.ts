@@ -130,7 +130,7 @@ export function listStockItems(token:string,warehouseId:string,q=''){
   return request<{items:StockItem[]}>('/stocks/items?'+query,token);
 }
 export function receiveStock(token:string,body:{
-  warehouseId:string;productId:string;items:Array<{imei:string;location:string}>;
+  warehouseId:string;productId:string;items:Array<{imei:string;location:string;supplierId?:string;receiptReference?:string;receivedOn?:string|null}>;
 }){
   return request<{quantity:number;itemIds:string[]}>('/stocks/receipts',token,{
     method:'POST',body:JSON.stringify(body),
