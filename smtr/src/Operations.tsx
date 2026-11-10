@@ -75,7 +75,8 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
   const [stockFile,setStockFile]=useState<File|null>(null);
   const [stockPreview,setStockPreview]=useState<ImportPreview|null>(null);
   const [quantity,setQuantity]=useState('1');
-  const [supplierName,setSupplierName]=useState('');
+  const [supplierId,setSupplierId]=useState('');
+  const [suppliers,setSuppliers]=useState<Array<{id:string;code:string;name:string}>>([]);
   const [receiptReference,setReceiptReference]=useState('');
   const [receivedOn,setReceivedOn]=useState('');
   const trackingMode=products.find(p=>p.id===productId)?.trackingMode||'individual';
@@ -111,12 +112,14 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
     if (!token) return;
     let alive=true;
     setLoading(true);setError('');
-    Promise.all([listStock(token),listCentralWarehouses(token),listProducts(token)])
-      .then(([stock,central,productList])=>{
+    Promise.all([listStock(token),listCentralWarehouses(token),listProducts(token),
+      get<{suppliers:Array<{id:string;code:string;name:string}>}>('/catalog/references',token)])
+      .then(([stock,central,productList,references])=>{
         if(!alive)return;
         setCategories(stock.categories);
         setWarehouses(central.warehouses);
         setProducts(productList.products);
+        setSuppliers(references.suppliers);
         setWarehouseId(current=>current || central.warehouses[0]?.id || '');
         setProductId(current=>current || productList.products[0]?.id || '');
       })
@@ -139,7 +142,7 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
     }
     setSending(true);setError('');setNotice('');
     try{
-      const metadata={location,supplierName,receiptReference,receivedOn:receivedOn||null};
+      const metadata={location,supplierId,receiptReference,receivedOn:receivedOn||null};
       const items=trackingMode==='standard'
         ?Array.from({length:count},()=>({imei:'',...metadata}))
         :entries.map(imei=>({imei,...metadata}));
@@ -171,7 +174,7 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
       {notice&&<Notice message={notice} tone="success"/>}
       {error&&<Notice message={error} tone="error"/>}
     {!showReception&&!stockPreview&&<>
-      <p className="catalog-note">Import Excel : feuille STOCK (SKU, IMEI pour les téléphones, QUANTITE pour les accessoires, emplacement, fournisseur et date). Prévisualisation obligatoire.</p>
+      <p className="catalog-note">Import Excel : feuille STOCK (SKU, IMEI ou QUANTITE, CODE_FOURNISSEUR existant, emplacement et date). Prévisualisation obligatoire.</p>
     </>}
       {showReception&&!preview&&<form className="ref-form ref-reception" onSubmit={saveLot}>
         <h3>Réceptionner un lot — stock central</h3>
@@ -202,8 +205,12 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
                 placeholder="Saisir les IMEI réellement réceptionnés" required/>
             </label>}
         <div className="ref-fields">
-          <label>Fournisseur (facultatif)<input value={supplierName} maxLength={150}
-            onChange={e=>setSupplierName(e.target.value)}/></label>
+          <label>Fournisseur existant (facultatif)
+            <select value={supplierId} onChange={e=>setSupplierId(e.target.value)}>
+              <option value="">Aucun fournisseur</option>
+              {suppliers.map(s=><option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
+            </select>
+          </label>
           <label>Référence de réception<input value={receiptReference} maxLength={100}
             onChange={e=>setReceiptReference(e.target.value)}/></label>
           <label>Date de réception<input type="date" value={receivedOn}
