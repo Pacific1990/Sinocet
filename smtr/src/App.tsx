@@ -13,6 +13,7 @@ import { ApiError } from './api';
 import { get, post } from './services';
 import { isModule, isRole, roleModules, type ModuleId, type Role } from './permissions';
 import Operations from './Operations';
+import ProductsPage from './ProductsPage';
 import DashboardPage from './DashboardPage';
 import SalesPage from './SalesPage';
 import DebtsPage from './DebtsPage';
@@ -36,6 +37,7 @@ const MODULES:Record<ModuleId,NavDef>={
   settings:{title:'Paramètres système',description:'Configuration technique des alertes et de l’application.',icon:SlidersHorizontal,label:'Paramètres'},
   system_audit:{title:'Journal technique',description:'Traçabilité des changements de configuration.',icon:Shield,label:'Journal technique'},
   dashboard:{title:'Tableau de bord',description:'Suivi opérationnel en temps réel selon votre périmètre.',icon:LayoutDashboard,label:'Accueil'},
+  products:{title:'Catalogue Produits',description:'Fiches produits, références, variantes et import Excel.',icon:Smartphone,label:'Produits'},
   stocks:{title:'Stock Central & IMEI',description:'Produits, lots et disponibilité par catégorie.',icon:Boxes,label:'Stocks'},
   transfers:{title:'Transferts',description:'Du Stock Central vers les agents avec validation de réception.',icon:ArrowLeftRight,label:'Transferts'},
   sales:{title:'Point de vente',description:'Ventes, reçus et stock de l’agent attribué.',icon:ShoppingBag,label:'Ventes'},
@@ -232,6 +234,7 @@ function Workspace({session,preview,onLogout}:{
     }
     switch(screen){
       case 'dashboard':return <DashboardPage {...common} role={role} onNavigate={navigate}/>;
+      case 'products':return <ProductsPage {...common} role={role} onRefresh={refreshData}/>;
       case 'stocks':case 'transfers':return <Operations {...common} screen={screen} role={role} initialCreate={openCreate} onNavigate={navigate}/>;
       case 'sales':return <SalesPage {...common} role={role} initialCreate={openCreate} userId={session?.user.id||''} onRefresh={refreshData}/>;
       case 'debts':return <DebtsPage {...common} role={role} onRefresh={refreshData}/>;
