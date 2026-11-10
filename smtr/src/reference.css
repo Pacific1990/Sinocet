@@ -115,3 +115,25 @@
   .ref-transfer-summary dl {gap:10px;}
   .ref-agent-layout .ref-table {min-width:520px;}
 }
+
+
+/* Catalogue SMTR : reprend les panneaux, champs et boutons du PDF de référence. */
+.product-catalog { width:100%; min-width:0; }
+.product-form { width:100%; }
+.product-form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr)); gap:14px; margin-bottom:18px; }
+.product-catalog .catalog-field { min-width:0; display:flex; flex-direction:column; gap:7px; }
+.product-catalog input,.product-catalog select,.product-catalog textarea,
+.product-file-label input { width:100%; min-height:44px; padding:10px 12px; border:1px solid #d8e1ed; border-radius:8px; background:#fff; color:#152139; font:600 12px 'DM Sans',sans-serif; }
+.product-catalog textarea { resize:vertical; }
+.product-details { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:12px; }
+.product-details > div { display:flex; flex-direction:column; gap:8px; border:1px solid #dde4ef; border-radius:10px; padding:14px; min-width:0; overflow-wrap:anywhere; }
+.product-details small { font-size:11px; color:#738298; }
+.product-details strong { font-size:13px; font-weight:750; }
+.product-import-tools { margin:16px 0; }
+.product-file-label { display:flex; align-items:center; gap:9px; font-size:12px; font-weight:700; flex-wrap:wrap; }
+.product-file-label input { max-width:360px; }
+.product-import-preview { margin-top:18px; }
+.product-import-preview > p { font-size:13px; color:#536780; }
+@media (min-width:800px) {
+  .product-form-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
