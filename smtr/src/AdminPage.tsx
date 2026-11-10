@@ -90,8 +90,8 @@ function AdminUsers(props:Props){
   const users=(request.data?.users||[]).filter(u=>
     (u.name+' '+u.email+' '+u.role).toLowerCase().includes(filter.toLowerCase()));
   return <div className="smtr-ref">
-    <Panel title="Gestion des utilisateurs" subtitle="Création, habilitation et activation des comptes"
-      action={<SmallButton kind="blue" onClick={()=>setCreating(v=>!v)}>+ Nouvel utilisateur</SmallButton>}>
+    <Panel title={creating?"Nouvel utilisateur":"Gestion des utilisateurs"} subtitle="Création, habilitation et activation des comptes"
+      action={<SmallButton kind="blue" onClick={()=>setCreating(v=>!v)}>{creating?"Retour à la liste":"+ Nouvel utilisateur"}</SmallButton>}>
       {message&&<Notice tone="success">{message}</Notice>}
       {(error||request.error)&&<Notice tone="error">{error||request.error}</Notice>}
       {creating&&<form className="catalog-form catalog-inner-panel" onSubmit={create}>
@@ -120,6 +120,7 @@ function AdminUsers(props:Props){
           <SubmitButton disabled={busy}>{busy?'Création…':'Créer le compte'}</SubmitButton>
         </div>
       </form>}
+      {!creating&&<>
       <Filters><Field label="Rechercher un utilisateur">
         <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Nom, email, rôle"/>
       </Field></Filters>
@@ -135,7 +136,7 @@ function AdminUsers(props:Props){
             ?<span key={user.id} className="catalog-inline-chip">Compte protégé</span>
             :<SmallButton key={user.id} disabled={busy} onClick={()=>setActive(user)}>
               {user.active?'Désactiver':'Activer'}</SmallButton>,
-        ])}/>}
+        ])}/>}</>}
     </Panel>
   </div>;
 }

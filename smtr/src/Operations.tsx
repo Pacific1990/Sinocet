@@ -145,9 +145,9 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
   return <div className="smtr-ref">
     <section className="ref-panel ref-panel--stock">
       <div className="ref-panel-head">
-        <div><h2>Stock Central{warehouses.length===1?' — '+warehouses[0].name:''}</h2>
+        <div><h2>{showProduct?"Nouvelle référence produit":showReception?"Réceptionner un lot":"Stock Central"}{warehouses.length===1?' — '+warehouses[0].name:''}</h2>
           <p>Consultation et réception des arrivages fournisseurs</p></div>
-        <div className="ref-actions">
+        {!showProduct&&!showReception&&<div className="ref-actions">
           <button type="button" className="ref-button ref-button--outline"
             disabled={preview||importing||!warehouseId} onClick={()=>inputRef.current?.click()}>
             {importing?'Import en cours…':'Importer Excel'}
@@ -158,12 +158,14 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
             onClick={()=>setShowProduct(v=>!v)}>+ Référence produit</button>
           <button type="button" className="ref-button ref-button--blue" disabled={preview}
             onClick={()=>{setShowReception(x=>!x);setNotice('');}}>+ Réceptionner un lot</button>
-        </div>
+        </div>}
       </div>
       {notice&&<Notice message={notice} tone="success"/>}
       {error&&<Notice message={error} tone="error"/>}
+    {!showProduct&&!showReception&&<>
       <p className="catalog-note">Import Excel : colonnes SKU, IMEI (texte) et EMPLACEMENT (facultative). 500 lignes et 2 Mo maximum.</p>
-      {showProduct&&!preview&&<form className="ref-form ref-reception" onSubmit={createProduct}>
+    </>}
+          {showProduct&&!preview&&<form className="ref-form ref-reception" onSubmit={createProduct}>
         <h3>Nouvelle référence produit</h3>
         <div className="ref-fields">
           <label>Nom du produit<input required minLength={2} maxLength={180} value={productName} onChange={e=>setProductName(e.target.value)}/></label>
@@ -206,14 +208,16 @@ function StockCentral({token,preview,onLogout,onNavigate}: Props) {
             {sending?'Enregistrement…':'Enregistrer le lot'}</button>
         </div>
       </form>}
+    {!showProduct&&!showReception&&<>
       <div className="ref-categories">
         {categories.map(category=><span key={category.id} className="ref-category">{category.name}</span>)}
       </div>
       {loading?<Loading/>:<CategoryTable categories={categories}/>}
       <p className="ref-footnote">Note — « Ramba » n’apparaît jamais ici : ce n’est pas une catégorie d’achat, uniquement une résolution SAV.</p>
-    </section>
-    <div className="ref-footer-action"><button type="button" className="ref-button ref-button--outline"
-      onClick={()=>onNavigate('transfers')}>Ouvrir les transferts Central → Agent</button></div>
+    </>}
+        </section>
+    {!showProduct&&!showReception&&<div className="ref-footer-action"><button type="button" className="ref-button ref-button--outline"
+      onClick={()=>onNavigate('transfers')}>Ouvrir les transferts Central → Agent</button></div>}
   </div>;
 }
 
@@ -260,6 +264,7 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
   const [reload,setReload]=useState(0);
   const requestId=useRef(crypto.randomUUID());
   const [reconcileId,setReconcileId]=useState('');
+  const [showTransfer,setShowTransfer]=useState(false);
   const [reconcileItems,setReconcileItems]=useState<Array<{id:string;imeiMasked:string;productName:string}>>([]);
   const [returned,setReturned]=useState<string[]>([]);
   const [reconcileReason,setReconcileReason]=useState('');
@@ -327,13 +332,14 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
       const result=await startTransfer(token,{requestId:requestId.current,
         sourceWarehouseId:warehouseId,agentId,itemIds:selected});
       setNotice('Transfert #'+result.transfer.id+' envoyé : état En transit. Réception agent requise.');
-      requestId.current=crypto.randomUUID();setSelected([]);setReload(x=>x+1);
+      requestId.current=crypto.randomUUID();setSelected([]);setShowTransfer(false);setReload(x=>x+1);
     }catch(e){setError(getError(e,onLogout));}finally{setSending(false);}
   }
   const agentName=agents.find(agent=>agent.id===agentId)?.name||'—';
   return <div className="smtr-ref">
     {notice&&<Notice message={notice} tone="success"/>}
     {error&&<Notice message={error} tone="error"/>}
+    {(showTransfer||preview)&&<>
     <form className="ref-transfer-layout" onSubmit={send}>
       <section className="ref-panel ref-transfer-select">
         <div className="ref-panel-head"><div><h2>Nouveau transfert</h2><p>Étape 1/2 — sélection des produits</p></div></div>
@@ -384,10 +390,12 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
           disabled={preview||sending||!selected.length||!warehouseId||!agentId}>
           {sending?'Envoi…':'Envoyer le transfert'}</button>
         <button type="button" className="ref-button ref-button--outline ref-button--full"
-          onClick={()=>{setSelected([]);setQuery('');requestId.current=crypto.randomUUID();}}>Annuler</button>
+          onClick={()=>{setSelected([]);setQuery('');requestId.current=crypto.randomUUID();setShowTransfer(false);}}>Retour à la liste</button>
       </section>
     </form>
-    <section className="ref-panel ref-history"><h2>Transferts en cours</h2>
+    </>}
+        {!showTransfer&&!reconcileId&&<section className="ref-panel ref-history"><div className="ref-panel-head"><h2>Transferts en cours</h2>
+      <button type="button" className="ref-button ref-button--blue" disabled={preview} onClick={()=>setShowTransfer(true)}>+ Nouveau transfert</button></div>
       {!transfers.length?<RefEmpty message="Aucun transfert enregistré."/>:
       <div className="ref-table-scroll"><table className="ref-table"><thead><tr>
         <th>N°</th><th>DESTINATAIRE</th><th>QUANTITÉ</th><th>INITIÉ LE</th><th>STATUT</th><th>ACTION</th>
@@ -401,7 +409,7 @@ function ManagerTransfers({token,preview,onLogout}:Props) {
             onClick={()=>{void openReconciliation(tr.id);}}>Réconcilier</button>:
           '—'}</td>
       </tr>)}</tbody></table></div>}
-    </section>
+    </section>}
     {reconcileId&&<section className="ref-panel" style={{marginTop:16}}>
       <div className="ref-panel-head">
         <div><h2>Réconciliation transfert #{reconcileId}</h2>
@@ -450,7 +458,7 @@ function AgentReception({token,preview,onLogout}:Props) {
     listPendingTransfers(token).then(r=>{
       if(!mounted)return;
       setPending(r.transfers);
-      setSelectedId(current=>r.transfers.some(x=>x.id===current)?current:r.transfers[0]?.id||'');
+      setSelectedId(current=>r.transfers.some(x=>x.id===current)?current:'');
     }).catch(e=>{if(mounted)setError(getError(e,onLogout));})
       .finally(()=>{if(mounted)setLoading(false);});
     return()=>{mounted=false;};
@@ -463,7 +471,7 @@ function AgentReception({token,preview,onLogout}:Props) {
     try{
       const result=await receiveTransfer(token,transfer.id,checked);
       setNotice('Réception du transfert #'+result.transfer.id+' validée. Stock agent mis à jour.');
-      setChecked([]);setReload(x=>x+1);
+      selectTransfer('');setReload(x=>x+1);
     }catch(e){setError(getError(e,onLogout));}finally{setSending(false);}
   }
   async function report(event:FormEvent<HTMLFormElement>){
@@ -472,21 +480,24 @@ function AgentReception({token,preview,onLogout}:Props) {
     try{
       const result=await reportTransferDiscrepancy(token,transfer.id,checked,reason);
       setNotice('Écart signalé sur le transfert #'+result.transfer.id+'. Articles gelés : examen Manager requis.');
-      setChecked([]);setReason('');setShowDiscrepancy(false);setReload(x=>x+1);
+      selectTransfer('');setReload(x=>x+1);
     }catch(e){setError(getError(e,onLogout));}finally{setSending(false);}
   }
   return <div className="smtr-ref ref-agent-layout">
     {notice&&<Notice message={notice} tone="success"/>}
     {error&&<Notice message={error} tone="error"/>}
     <section className="ref-receive-frame">
-      {loading?<Loading/>: !transfer?
-        <RefEmpty message="Aucun transfert en attente de validation de réception."/>:
+      {loading?<Loading/>:!transfer?
+        pending.length===0?<RefEmpty message="Aucun transfert en attente de validation de réception."/>:
+          <div className="catalog-inline-list">
+            {pending.map(item=><div className="catalog-row" key={item.id}>
+              <span><strong>Transfert #{item.id}</strong><br/><small>{item.source} · {dateOf(item.sentAt)} · {item.items.length} article(s)</small></span>
+              <button type="button" className="ref-button ref-button--blue" onClick={()=>selectTransfer(item.id)}>Vérifier la réception</button>
+            </div>)}
+          </div>:
         <>
-          {pending.length>1&&<label className="ref-agent-switch">Transfert entrant
-            <select value={selectedId} onChange={e=>selectTransfer(e.target.value)}>
-              {pending.map(item=><option key={item.id} value={item.id}>Transfert #{item.id} · {dateOf(item.sentAt)}</option>)}
-            </select>
-          </label>}
+          <div className="catalog-actions"><button type="button" className="ref-button ref-button--outline"
+            disabled={sending} onClick={()=>selectTransfer('')}>Retour à la liste</button></div>
           <div className="ref-incoming-banner"><strong>Transfert entrant — Stock Central</strong>
             <span>Envoyé le {dateOf(transfer.sentAt)} · {transfer.source}</span></div>
           <div className="ref-incoming-card"><h2>Articles attendus ({transfer.items.length})</h2>

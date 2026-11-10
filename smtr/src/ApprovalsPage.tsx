@@ -21,6 +21,7 @@ export default function ApprovalsPage(props:Props){
   const [resolution,setResolution]=useState('REPAIR');
   const [reason,setReason]=useState('');
   const [reviewId,setReviewId]=useState('');
+  const [formView,setFormView]=useState<'request'|'cancel'|null>(null);
   const [decision,setDecision]=useState('APPROVED');
   const [pin,setPin]=useState('');
   const [cancelId,setCancelId]=useState('');
@@ -82,7 +83,7 @@ export default function ApprovalsPage(props:Props){
     {message&&<Notice tone="success">{message}</Notice>}
     {(error||approvals.error||sales.error||stock.error||cases.error)&&
       <Notice tone="error">{error||approvals.error||sales.error||stock.error||cases.error}</Notice>}
-    {agent&&<Panel title="Demander une validation Manager" subtitle="Remise, annulation ou résolution SAV">
+    {agent&&formView==="request"&&<Panel action={<SmallButton onClick={()=>setFormView(null)}>Retour à la liste</SmallButton>} title="Demander une validation Manager" subtitle="Remise, annulation ou résolution SAV">
       <form className="catalog-form" onSubmit={requestApproval}>
         <Field label="Type de demande">
           <select value={kind} onChange={e=>setKind(e.target.value)}>
@@ -131,7 +132,9 @@ export default function ApprovalsPage(props:Props){
         <SubmitButton disabled={busy}>{busy?'Envoi…':'Soumettre au Manager'}</SubmitButton>
       </form>
     </Panel>}
-    <Panel title={agent?'Mes demandes':'Demandes de validation'} subtitle="Traçabilité des décisions et accès selon le rôle">
+    {!formView&&!reviewId&&<>
+    <Panel title={agent?'Mes demandes':'Demandes de validation'} subtitle="Traçabilité des décisions et accès selon le rôle"
+      action={<SmallButton kind="blue" onClick={()=>setFormView(agent?"request":"cancel")}>{agent?"+ Nouvelle demande":"Annulation après retour"}</SmallButton>}>
       {approvals.loading?<Loading/>:<DataTable
         headers={['N°','TYPE','DEMANDEUR','DATE','STATUT','ACTION']}
         rows={list.map(a=>[
@@ -143,7 +146,8 @@ export default function ApprovalsPage(props:Props){
               a.status==='APPROVED'&&a.kind==='SAV_RESOLUTION'?'À résoudre dans SAV':'—',
         ])}/>}
     </Panel>
-    {!agent&&reviewId&&<Panel title={'Validation Manager #'+reviewId}
+    </>}
+        {!agent&&reviewId&&<Panel title={'Validation Manager #'+reviewId}
       subtitle="Code confidentiel requis pour confirmer votre décision">
       <form className="catalog-form" onSubmit={review}>
         <Field label="Décision">
@@ -162,7 +166,7 @@ export default function ApprovalsPage(props:Props){
         </div>
       </form>
     </Panel>}
-    {!agent&&<Panel title="Annulation après retour physique" subtitle="Réservé aux ventes avec autorisation approuvée">
+    {!agent&&formView==="cancel"&&<Panel action={<SmallButton onClick={()=>setFormView(null)}>Retour à la liste</SmallButton>} title="Annulation après retour physique" subtitle="Réservé aux ventes avec autorisation approuvée">
       <div className="catalog-warning-box">
         L’annulation modifie le stock et la caisse. Vérifiez le retour physique de l’IMEI avant de confirmer.
       </div>

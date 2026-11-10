@@ -52,7 +52,9 @@ export default function BusinessSettingsPage(props:Props){
     {message&&<Notice tone="success">{message}</Notice>}
     {(error||products.error||agents.error)&&
       <Notice tone="error">{error||products.error||agents.error}</Notice>}
-    <Panel title="Produits & tarification" subtitle="Prix, seuils d’alerte et références enregistrées">
+    {!agentId&&<>
+    <Panel title={chosen?"Modifier le produit":"Produits & tarification"} subtitle="Prix, seuils d’alerte et références enregistrées">
+    {!chosen&&<>
       <Filters><Field label="Rechercher une référence">
         <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Produit, code ou catégorie"/>
       </Field></Filters>
@@ -65,7 +67,8 @@ export default function BusinessSettingsPage(props:Props){
             setSelected(p.id);setPrice(String(p.salePriceF||''));setMinimum(String(p.minimumLevel));setCost('');
           }}>Modifier</SmallButton>:'Lecture',
         ])}/>}
-      {director&&chosen&&<form className="catalog-form catalog-inner-panel" onSubmit={saveProduct}>
+    </>}
+          {director&&chosen&&<form className="catalog-form catalog-inner-panel" onSubmit={saveProduct}>
         <h3 className="catalog-card-title">Réglages de {chosen.name}</h3>
         <div className="catalog-form-row">
           <Field label="Prix de vente (FCFA)">
@@ -85,14 +88,18 @@ export default function BusinessSettingsPage(props:Props){
         </div>
       </form>}
     </Panel>
-    {director&&<Panel title="Plafonds de crédit des agents"
+    </>}
+        {director&&!chosen&&<Panel title={agentId?"Modifier le plafond":"Plafonds de crédit des agents"}
+      action={agentId&&<SmallButton onClick={()=>setAgentId("")}>Retour à la liste</SmallButton>}
       subtitle="La Direction fixe les plafonds ; le Manager contrôle les clients">
+    {!agentId&&<>
       <DataTable headers={['AGENT','PLAFOND','CRÉANCES ACTIVES','ACTION']}
         rows={(agents.data?.agents||[]).map(a=>[
           a.name,fcfa(a.creditLimitF),fcfa(a.outstandingF),
           <SmallButton onClick={()=>{setAgentId(a.id);setLimit(String(a.creditLimitF));}}>Modifier</SmallButton>,
         ])}/>
-      {agentId&&<form className="catalog-form catalog-inner-panel" onSubmit={updateLimit}>
+    </>}
+          {agentId&&<form className="catalog-form catalog-inner-panel" onSubmit={updateLimit}>
         <h3 className="catalog-card-title">Modifier un plafond</h3>
         <Field label={'Plafond pour '+agents.data?.agents.find(a=>a.id===agentId)?.name}>
           <input required type="number" min={0} value={limit} onChange={e=>setLimit(e.target.value)}/>

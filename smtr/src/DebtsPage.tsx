@@ -14,6 +14,7 @@ export default function DebtsPage(props:Props){
   const [filter,setFilter]=useState<'all'|'pending'|'overdue'|'paid'>('all');
   const [search,setSearch]=useState('');
   const [showClient,setShowClient]=useState(false);
+  const [showLimit,setShowLimit]=useState(false);
   const [name,setName]=useState('');
   const [phone,setPhone]=useState('');
   const [agentId,setAgentId]=useState('');
@@ -113,8 +114,9 @@ export default function DebtsPage(props:Props){
         <Metric label="RECOUVRÉ CE MOIS" value={fcfa(totals?.recoveredThisMonthF)}/>
       </>}
     </div>
-    <Panel title={agent?'Mes crédits clients':'Suivi des crédits'} subtitle="Créances et échéances, selon votre périmètre"
-      action={<SmallButton kind="blue" onClick={()=>setShowClient(x=>!x)}>+ Ajouter un client</SmallButton>}>
+    {!selectedDebt&&!showLimit&&<>
+    <Panel title={showClient?"Nouveau client":agent?"Mes crédits clients":"Suivi des crédits"} subtitle="Créances et échéances, selon votre périmètre"
+      action={<>{!agent&&!showClient&&<SmallButton onClick={()=>setShowLimit(true)}>Plafonds de crédit</SmallButton>}<SmallButton kind="blue" onClick={()=>setShowClient(x=>!x)}>{showClient?"Retour à la liste":"+ Ajouter un client"}</SmallButton></>}>
       {showClient&&<form className="catalog-form catalog-inner-panel" onSubmit={createCustomer}>
         <h3 className="catalog-card-title">Nouveau client</h3>
         <div className="catalog-form-row">
@@ -131,6 +133,7 @@ export default function DebtsPage(props:Props){
         </div>
         <SubmitButton disabled={busy}>{busy?'Enregistrement…':'Enregistrer le client'}</SubmitButton>
       </form>}
+      {!showClient&&<>
       <div className="catalog-tab-group">
         {([['all','Tous'],['pending','À venir'],['overdue','Dépassées'],['paid','Payées']] as const)
           .map(([id,label])=><button type="button" key={id} className={'catalog-tab '+(filter===id?'active':'')}
@@ -151,8 +154,10 @@ export default function DebtsPage(props:Props){
               <MessageCircle size={15}/> Relancer</SmallButton>}
           </div>,
         ])}/>}
+    </>}
     </Panel>
-    {agent&&selectedDebt&&<Panel title={'Encaissement — '+selectedDebt.customer}
+    </>}
+        {agent&&selectedDebt&&<Panel title={'Encaissement — '+selectedDebt.customer}
       subtitle={'Restant dû : '+fcfa(selectedDebt.amountF)}>
       <form className="catalog-form" onSubmit={repay}>
         <div className="catalog-form-row">
@@ -175,7 +180,7 @@ export default function DebtsPage(props:Props){
         </div>
       </form>
     </Panel>}
-    {!agent&&<Panel title="Plafonds de crédit" subtitle="Autorisation préalable obligatoire pour toute vente à crédit">
+    {!agent&&showLimit&&<Panel action={<SmallButton onClick={()=>setShowLimit(false)}>Retour à la liste</SmallButton>} title="Plafonds de crédit" subtitle="Autorisation préalable obligatoire pour toute vente à crédit">
       <form className="catalog-form" onSubmit={updateLimit}>
         <div className="catalog-form-row">
           <Field label="Client">

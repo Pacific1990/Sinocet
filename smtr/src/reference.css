@@ -23,8 +23,8 @@
 .page-heading h1 {font-weight:800;}
 .ref-button, .ref-panel h2, .ref-panel h3 {font-family:'DM Sans',system-ui,sans-serif;}
 .smtr-ref {width:100%;color:#152139;}
-.ref-panel {background:#fff;border:1px solid #dde4ef;border-radius:13px;padding:22px;min-width:0;}
-.ref-panel-head {display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px;}
+.ref-panel {background:#fff;border:1px solid #dde4ef;border-radius:13px;padding:16px;min-width:0;}
+.ref-panel-head {display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px;}
 .ref-panel h2 {font-size:17px;font-weight:800;margin:0 0 6px;letter-spacing:-.025em;}
 .ref-panel h3 {font-size:15px;font-weight:800;margin:0 0 14px;}
 .ref-panel-head p {margin:0;color:#7a889d;font-size:12px;line-height:1.6;}
@@ -79,7 +79,7 @@
 .ref-transfer-summary .ref-button + .ref-button {margin-top:10px;}
 .ref-history {margin-top:19px;}
 .ref-history > h2 {margin-bottom:14px;}
-.ref-agent-layout {max-width:510px;margin:0 auto;}
+.ref-agent-layout {width:100%;}
 .ref-agent-layout .ref-panel {margin-bottom:14px;}
 .ref-agent-layout .ref-button {margin-bottom:9px;}
 .ref-receive-frame {background:#f2f4f9;}
@@ -97,17 +97,16 @@
 .ref-agent-switch {display:flex;flex-direction:column;gap:7px;margin-bottom:14px;color:#8793a7;font-size:11px;}
 @media(min-width:680px){
   .ref-fields {grid-template-columns:repeat(2,minmax(0,1fr));}
-  .ref-panel {padding:25px;}
-  .ref-agent-layout {max-width:560px;}
+  .ref-panel {padding:18px;}
 }
 @media(min-width:1180px){
   .ref-transfer-layout {grid-template-columns:minmax(0,1.7fr) minmax(285px,1fr);gap:20px;}
   .ref-fields--transfer {grid-template-columns:repeat(2,minmax(0,1fr));}
   .ref-fields--transfer label:last-child {grid-column:2;}
-  .ref-panel--stock {padding:27px;}
+  .ref-panel--stock {padding:18px;}
 }
 @media(max-width:619px){
-  .ref-panel {padding:16px;}
+  .ref-panel {padding:12px;}
   .ref-panel-head {flex-direction:column;gap:12px;}
   .ref-actions {width:100%;}
   .ref-actions .ref-button {flex:1;}
