@@ -1,0 +1,51 @@
+name: SMTR Playwright four-role UI preview
+
+on:
+  pull_request:
+    paths:
+      - 'smtr/**'
+      - '.github/workflows/smtr-playwright-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  role-browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: smtr
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: smtr/package-lock.json
+      - run: npm ci
+      - name: Install Playwright for this isolated CI job
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start local Vite preview (not a deployment)
+        run: |
+          (npm run dev -- --host 127.0.0.1 > /tmp/smtr-qa-vite.log 2>&1 &)
+          for i in $(seq 1 40); do
+            curl -fsS http://127.0.0.1:5173/ > /dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/smtr-qa-vite.log
+          exit 1
+      - name: Playwright four-role desktop/mobile smoke (preview data only)
+        run: node scripts/qa-playwright-preview.cjs
+      - name: Upload screenshots and logs, even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smtr-role-previews
+          path: |
+            smtr/qa-artifacts/
+            /tmp/smtr-qa-vite.log
+          retention-days: 7
