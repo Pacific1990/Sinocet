@@ -15,7 +15,7 @@ type QaCase={
   id:string;templateKey:string;role:Role;module:string;scenario:string;testData:string;
   expectedResult:string;obtainedResult:string;status:QaStatus;bugRef:string;
   evidenceUrl:string;branchPr:string;commitSha:string;environment:QaEnvironment;
-  nextAction:string;accountRef:string;executionTool:QaTool;createdBy:string;updatedBy:string|null;
+  nextAction:string;accountRef:string;executionTool:QaTool;
 };
 type View='dashboard'|'table'|'kanban'|'playwright'|'blockers'|'ready'|'templates'|'detail';
 type Props={
@@ -42,7 +42,7 @@ export function statusNeedsDetail(c:QaCase,next:QaStatus,role:Role):boolean{
 const emptyForm:QaCase={
   id:'',templateKey:'',role:'agent',module:'',scenario:'',testData:'',expectedResult:'',
   obtainedResult:'',status:'todo',bugRef:'',evidenceUrl:'',branchPr:'',commitSha:'',
-  environment:'',nextAction:'',accountRef:'',executionTool:'manual',createdBy:'',updatedBy:null,
+  environment:'',nextAction:'',accountRef:'',executionTool:'manual',
 };
 const NAV:{id:Exclude<View,'detail'>;title:string;icon:typeof ClipboardList}[]=[
   {id:'dashboard',title:'Vue générale',icon:LayoutGrid},
