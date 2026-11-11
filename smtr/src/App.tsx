@@ -26,6 +26,7 @@ import SupervisionPage from './SupervisionPage';
 import BusinessSettingsPage from './BusinessSettingsPage';
 import AuditPage from './AuditPage';
 import AdminPage from './AdminPage';
+import QaPage from './QaPage';
 
 type NavDef={title:string;description:string;icon:LucideIcon;label:string};
 type Access={settings?:{companyName:string;pageSize:number};role:Role;permissions:string[];navigation:Array<{id:string;label:string;sortOrder:number}>};
@@ -50,6 +51,7 @@ const MODULES:Record<ModuleId,NavDef>={
   supervision:{title:'Cartographie des stocks',description:'Supervision des dépôts, stocks agents et transferts.',icon:BarChart3,label:'Supervision'},
   business_settings:{title:'Paramètres produits',description:'Références, tarifs et plafonds financiers.',icon:SlidersHorizontal,label:'Produits & tarifs'},
   audit:{title:'Journal d’audit',description:'Traçabilité métier des opérations sensibles.',icon:Shield,label:'Audit'},
+  qa:{title:'Recette & validation',description:'Suivi des parcours par rôle, preuves, tests Playwright et blocages.',icon:ClipboardCheck,label:'Validation QA'},
 };
 const ROLE_LABELS:Record<Role,string>={admin:'Administrateur',director:'Direction',manager:'Manager',agent:'Agent terrain'};
 
@@ -246,6 +248,7 @@ function Workspace({session,preview,onLogout}:{
       case 'supervision':return <SupervisionPage {...common} onNavigate={navigate}/>;
       case 'business_settings':return <BusinessSettingsPage {...common} role={role} onRefresh={refreshData}/>;
       case 'audit':return <AuditPage {...common}/>;
+      case 'qa':return <QaPage {...common} role={role} onRefresh={refreshData}/>;
       default:return <div className="ref-empty">Ce module est indisponible.</div>;
     }
   }
