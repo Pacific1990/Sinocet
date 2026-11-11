@@ -9,7 +9,7 @@ const sample=(overrides:Partial<QaItem>={}):QaItem=>({
   expectedResult:'Réception validée seulement après contrôle',obtainedResult:'',
   status:'todo',bugRef:'',evidenceUrl:'',branchPr:'',commitSha:'',
   environment:'',nextAction:'',accountRef:'',executionTool:'playwright',
-  createdBy:'7',updatedBy:null,...overrides,
+  ...overrides,
 });
 
 describe('Cockpit de validation SMTR',()=>{
