@@ -4,11 +4,11 @@ import { displayError, fcfa, patch, post } from './services';
 import { downloadExcelTemplate, uploadExcel, type ImportPreview } from './importExcel';
 import type { Role } from './permissions';
 
-type CharacteristicEntry={characteristicId:string;name?:string;value:string};
+type CharacteristicEntry={attributeId:string;name?:string;value:string};
 type NamedReference={id:string;name:string;description?:string;brandId?:string};
 type SupplierReference={id:string;code:string;name:string};
 type References={
-  brands:NamedReference[];models:NamedReference[];characteristics:NamedReference[];
+  brands:NamedReference[];models:NamedReference[];attributes:NamedReference[];
   suppliers:SupplierReference[];
 };
 type Product={
@@ -32,7 +32,7 @@ function fromProduct(p:Product):Draft{
   return {
     sku:p.sku,name:p.name,category:p.category,description:p.description||'',
     brandId:p.brandId||'',modelId:p.modelId||'',
-    characteristics:(p.characteristics||[]).map(c=>({characteristicId:c.characteristicId,value:c.value})),
+    characteristics:(p.characteristics||[]).map(c=>({attributeId:c.attributeId,value:c.value})),
     trackingMode:p.trackingMode,minimumLevel:String(p.minimumLevel),
     salePriceF:'',purchaseCostF:'',
   };
@@ -43,7 +43,7 @@ export default function ProductsPage(props:Props){
   const references=useRemote<References>(props.token,'/catalog/references',props.refresh,props.onLogout);
   const brands=references.data?.brands||[];
   const models=references.data?.models||[];
-  const characteristics=references.data?.characteristics||[];
+  const attributes=references.data?.attributes||[];
   const canManage=props.role==='manager'||props.role==='director';
   const director=props.role==='director';
   const [view,setView]=useState<'list'|'form'|'detail'|'import'|'references'>('list');
@@ -55,7 +55,7 @@ export default function ProductsPage(props:Props){
   const [notice,setNotice]=useState('');
   const [file,setFile]=useState<File|null>(null);
   const [result,setResult]=useState<ImportPreview|null>(null);
-  const [referenceKind,setReferenceKind]=useState<'brands'|'models'|'characteristics'>('brands');
+  const [referenceKind,setReferenceKind]=useState<'brands'|'models'|'attributes'>('brands');
   const [referenceName,setReferenceName]=useState('');
   const [referenceDescription,setReferenceDescription]=useState('');
   const [referenceBrandId,setReferenceBrandId]=useState('');
@@ -72,8 +72,8 @@ export default function ProductsPage(props:Props){
   function setCharacteristic(id:string,value:string){
     setForm(old=>({
       ...old,characteristics:[
-        ...old.characteristics.filter(c=>c.characteristicId!==id),
-        ...(value.trim()?[{characteristicId:id,value}]:[]),
+        ...old.characteristics.filter(c=>c.attributeId!==id),
+        ...(value.trim()?[{attributeId:id,value}]:[]),
       ],
     }));
   }
@@ -148,7 +148,7 @@ export default function ProductsPage(props:Props){
     {(error||data.error||references.error)&&<Notice tone="error">{error||data.error||references.error}</Notice>}
     {view==='list'&&<Panel title={heading} subtitle="Références, caractéristiques, variantes et disponibilité"
       action={<>
-        {canManage&&<SmallButton onClick={()=>{setError('');setView('references');}}>Marques, modèles et caractéristiques</SmallButton>}
+        {canManage&&<SmallButton onClick={()=>{setError('');setView('references');}}>Marques, modèles et attributs</SmallButton>}
         {canManage&&<SmallButton onClick={()=>{setError('');setFile(null);setResult(null);setView('import');}}>Importer Excel</SmallButton>}
         {canManage&&<SmallButton onClick={create} kind="blue">+ Nouveau produit</SmallButton>}
       </>}>
@@ -227,14 +227,14 @@ export default function ProductsPage(props:Props){
           </>}
         </div>
         <h3>Caractéristiques configurables</h3>
-        <p className="catalog-note">Les caractéristiques sont définies une seule fois dans les référentiels ; leur valeur dépend de chaque produit. Aucun champ n'est spécifique aux téléphones.</p>
+        <p className="catalog-note">Les attributs sont définis une seule fois dans le référentiel global ; leur valeur constitue une caractéristique propre à chaque produit. Aucun champ n'est spécifique aux téléphones.</p>
         <div className="product-form-grid">
-          {characteristics.map(c=><Field key={c.id} label={c.name}>
-            <input maxLength={1000} value={form.characteristics.find(x=>x.characteristicId===c.id)?.value||''}
+          {attributes.map(c=><Field key={c.id} label={c.name}>
+            <input maxLength={1000} value={form.characteristics.find(x=>x.attributeId===c.id)?.value||''}
               onChange={e=>setCharacteristic(c.id,e.target.value)}/>
           </Field>)}
         </div>
-        {!characteristics.length&&<p className="catalog-note">Aucune caractéristique globale définie. La Direction peut ajouter une définition dans Référentiels produits.</p>}
+        {!attributes.length&&<p className="catalog-note">Aucun attribut global défini. La Direction peut ajouter une définition dans Référentiels produits.</p>}
         <Field label="Description"><textarea rows={3} maxLength={1000} value={form.description}
           onChange={e=>setField('description',e.target.value)}/></Field>
         {selected&&<p className="catalog-note">Un changement de suivi IMEI/quantité est bloqué si des unités ont déjà été réceptionnées.</p>}
@@ -244,17 +244,17 @@ export default function ProductsPage(props:Props){
       </form>
     </Panel>}
     {view==='references'&&<Panel title={heading}
-      subtitle="Marques, modèles et caractéristiques : référentiels globaux partagés"
+      subtitle="Marques, modèles et attributs : référentiels globaux partagés"
       action={backAction}>
       <p className="catalog-note">Ces trois référentiels sont communs à toutes les entreprises. La Direction peut ajouter des définitions ; aucune modification ou suppression d'une référence partagée n'est proposée.</p>
       {director&&<form className="catalog-form product-form" onSubmit={saveReference}>
         <div className="product-form-grid">
           <Field label="Type de référentiel">
             <select value={referenceKind}
-              onChange={e=>setReferenceKind(e.target.value as 'brands'|'models'|'characteristics')}>
+              onChange={e=>setReferenceKind(e.target.value as 'brands'|'models'|'attributes')}>
               <option value="brands">Marque globale</option>
               <option value="models">Modèle global</option>
-              <option value="characteristics">Caractéristique globale</option>
+              <option value="attributes">Attribut global</option>
             </select>
           </Field>
           {referenceKind==='models'&&<Field label="Marque parente *">
@@ -278,9 +278,9 @@ export default function ProductsPage(props:Props){
       <h3>Modèles globaux</h3>
       <DataTable headers={['MARQUE','MODÈLE','DESCRIPTION']}
         rows={models.map(m=>[brands.find(b=>b.id===m.brandId)?.name||'—',m.name,m.description||'—'])}/>
-      <h3>Caractéristiques globales</h3>
+      <h3>Attributs globaux</h3>
       <DataTable headers={['NOM','DESCRIPTION']}
-        rows={characteristics.map(c=>[c.name,c.description||'—'])}/>
+        rows={attributes.map(c=>[c.name,c.description||'—'])}/>
     </Panel>}
     {view==='import'&&<Panel title={heading} subtitle="Aperçu obligatoire avant toute création ou modification" action={backAction}>
       <p className="catalog-note">Remplissez PRODUITS et, si nécessaire, CARACTERISTIQUES. Les marques, modèles et caractéristiques doivent déjà exister dans les référentiels. ACTION vaut CREER ou MODIFIER : aucune modification silencieuse. Seule la Direction peut importer des prix.</p>
