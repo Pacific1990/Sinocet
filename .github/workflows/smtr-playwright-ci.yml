@@ -25,10 +25,10 @@ jobs:
           cache: npm
           cache-dependency-path: smtr/package-lock.json
       - run: npm ci
-      - name: Install Playwright for this isolated CI job
+      - name: Use runner Chrome with isolated Playwright package
         run: |
+          google-chrome --version
           npm install --no-save --package-lock=false playwright@1.56.1
-          npx playwright install --with-deps chromium
       - name: Start local Vite preview (not a deployment)
         run: |
           (npm run dev -- --host 127.0.0.1 > /tmp/smtr-qa-vite.log 2>&1 &)
