@@ -11,7 +11,7 @@ const roles=["admin","director","manager","agent"];
 const output=path.resolve(__dirname,"../qa-artifacts");
 fs.mkdirSync(output,{recursive:true});
 (async()=>{
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({channel:"chrome",headless:true});
  try{
   for(const role of roles){
    const context=await browser.newContext({viewport:{width:1440,height:900}});
