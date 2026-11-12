@@ -13,9 +13,6 @@
 }
 .workspace {background:#f2f4f9;}
 .sidebar {background:#0e1a32;}
-.sidebar .brand-mark {background:#2d5ce3;color:#fff;}
-.sidebar .brand-words strong {font-size:20px;}
-.sidebar .brand-words small {font-size:9px;}
 .nav-link.is-active {color:#fff;background:#22376d;box-shadow:inset 4px 0 #2d5ce3;border-radius:0;}
 .nav-link.is-active svg:first-child {color:#3266ed;}
 .nav-link {border-radius:0;}

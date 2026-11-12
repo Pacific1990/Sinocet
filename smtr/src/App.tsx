@@ -1,7 +1,7 @@
 import { ApplicationSettings } from './CatalogueUI';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  Activity, AlertCircle, ArrowLeftRight, ArrowRight, Boxes, BriefcaseBusiness,
+  AlertCircle, ArrowLeftRight, ArrowRight, Boxes, BriefcaseBusiness,
   CheckCircle2, ChevronRight, ClipboardCheck, CreditCard, FileText,
   Fingerprint, LayoutDashboard, LoaderCircle, LogOut, Menu, RefreshCw,
   Settings2, Shield, ShieldCheck, ShoppingBag, Smartphone, Users, Wallet,
@@ -62,8 +62,8 @@ function previewRole():Role|null{
 }
 function Brand({compact=false}:{compact?:boolean}){
   return <div className={'brand '+(compact?'brand--compact':'')}>
-    <span className="brand-mark" aria-hidden="true"><Activity size={23} strokeWidth={2.8}/></span>
-    <span className="brand-words"><strong>SMTR</strong><small>SINOCET ELECTRONICS</small></span>
+    <img className="brand-logo" src={import.meta.env.BASE_URL+'sinocet-logo.jpg'}
+      alt="Groupe Sinocet Electronics · SMTR" width={192} height={70}/>
   </div>;
 }
 function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
