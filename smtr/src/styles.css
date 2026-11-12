@@ -27,13 +27,8 @@ h1,h2,h3,p { margin-top: 0; }
 h1,h2,h3 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: -.045em; }
 .muted { color: var(--muted); line-height: 1.65; }
 .brand { display: inline-flex; align-items: center; gap: 12px; color: #fff; }
-.brand-mark { width: 48px; height: 48px; border-radius: 16px; color: #082438; background: var(--mint); display: grid; place-items: center; }
-.brand-words { display: flex; flex-direction: column; line-height: 1.1; gap: 6px; }
-.brand-words strong { font: 800 25px/1 Manrope, sans-serif; letter-spacing: -.05em; }
-.brand-words small { font-size: 9px; font-weight: 800; letter-spacing: .14em; }
-.brand--compact .brand-mark { width: 41px; height: 41px; border-radius: 12px; }
-.brand--compact .brand-words strong { font-size: 23px; }
-.brand--compact .brand-words small { font-size: 8px; }
+.brand-logo { display: block; width: 192px; max-width: 100%; height: auto; aspect-ratio: 192 / 70; object-fit: cover; object-position: center 46%; border-radius: 8px; }
+.brand--compact .brand-logo { width: 136px; }
 
 /* Mobile is the default layout. */
 .login-screen { min-height: 100dvh; background: #fff; display: grid; grid-template-columns: 1fr; }

@@ -105,7 +105,7 @@ export type StockCategory = {
   id:string; name:string; available:number; minimumLevel:number; location:string; status:string;
 };
 export type CentralWarehouse = {id:string;name:string;location:string | null};
-export type StockProduct = {id:string;name:string;sku:string;category:string;minimumLevel:number};
+export type StockProduct = {id:string;name:string;sku:string;category:string;minimumLevel:number;trackingMode?:string};
 export type StockItem = {id:string;imeiMasked:string;productName:string;location:string};
 export type AgentDestination = {id:string;name:string;warehouseId:string;warehouseName:string};
 export type TransferRecord = {id:string;status:string;agentName:string;sentAt:string;quantity:number};
@@ -130,7 +130,7 @@ export function listStockItems(token:string,warehouseId:string,q=''){
   return request<{items:StockItem[]}>('/stocks/items?'+query,token);
 }
 export function receiveStock(token:string,body:{
-  warehouseId:string;productId:string;items:Array<{imei:string;location:string}>;
+  warehouseId:string;productId:string;items:Array<{imei:string;location:string;supplierId?:string;receiptReference?:string;receivedOn?:string|null}>;
 }){
   return request<{quantity:number;itemIds:string[]}>('/stocks/receipts',token,{
     method:'POST',body:JSON.stringify(body),

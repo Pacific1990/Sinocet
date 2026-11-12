@@ -1,7 +1,7 @@
 import { ApplicationSettings } from './CatalogueUI';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  Activity, AlertCircle, ArrowLeftRight, ArrowRight, Boxes, BriefcaseBusiness,
+  AlertCircle, ArrowLeftRight, ArrowRight, Boxes, BriefcaseBusiness,
   CheckCircle2, ChevronRight, ClipboardCheck, CreditCard, FileText,
   Fingerprint, LayoutDashboard, LoaderCircle, LogOut, Menu, RefreshCw,
   Settings2, Shield, ShieldCheck, ShoppingBag, Smartphone, Users, Wallet,
@@ -13,6 +13,7 @@ import { ApiError } from './api';
 import { get, post } from './services';
 import { isModule, isRole, roleModules, type ModuleId, type Role } from './permissions';
 import Operations from './Operations';
+import ProductsPage from './ProductsPage';
 import DashboardPage from './DashboardPage';
 import SalesPage from './SalesPage';
 import DebtsPage from './DebtsPage';
@@ -25,6 +26,7 @@ import SupervisionPage from './SupervisionPage';
 import BusinessSettingsPage from './BusinessSettingsPage';
 import AuditPage from './AuditPage';
 import AdminPage from './AdminPage';
+import QaPage from './QaPage';
 
 type NavDef={title:string;description:string;icon:LucideIcon;label:string};
 type Access={settings?:{companyName:string;pageSize:number};role:Role;permissions:string[];navigation:Array<{id:string;label:string;sortOrder:number}>};
@@ -36,6 +38,7 @@ const MODULES:Record<ModuleId,NavDef>={
   settings:{title:'Paramètres système',description:'Configuration technique des alertes et de l’application.',icon:SlidersHorizontal,label:'Paramètres'},
   system_audit:{title:'Journal technique',description:'Traçabilité des changements de configuration.',icon:Shield,label:'Journal technique'},
   dashboard:{title:'Tableau de bord',description:'Suivi opérationnel en temps réel selon votre périmètre.',icon:LayoutDashboard,label:'Accueil'},
+  products:{title:'Catalogue Produits',description:'Fiches produits, références, variantes et import Excel.',icon:Smartphone,label:'Produits'},
   stocks:{title:'Stock Central & IMEI',description:'Produits, lots et disponibilité par catégorie.',icon:Boxes,label:'Stocks'},
   transfers:{title:'Transferts',description:'Du Stock Central vers les agents avec validation de réception.',icon:ArrowLeftRight,label:'Transferts'},
   sales:{title:'Point de vente',description:'Ventes, reçus et stock de l’agent attribué.',icon:ShoppingBag,label:'Ventes'},
@@ -48,6 +51,7 @@ const MODULES:Record<ModuleId,NavDef>={
   supervision:{title:'Cartographie des stocks',description:'Supervision des dépôts, stocks agents et transferts.',icon:BarChart3,label:'Supervision'},
   business_settings:{title:'Paramètres produits',description:'Références, tarifs et plafonds financiers.',icon:SlidersHorizontal,label:'Produits & tarifs'},
   audit:{title:'Journal d’audit',description:'Traçabilité métier des opérations sensibles.',icon:Shield,label:'Audit'},
+  qa:{title:'Recette & validation',description:'Suivi des parcours par rôle, preuves, tests Playwright et blocages.',icon:ClipboardCheck,label:'Validation QA'},
 };
 const ROLE_LABELS:Record<Role,string>={admin:'Administrateur',director:'Direction',manager:'Manager',agent:'Agent terrain'};
 
@@ -58,8 +62,8 @@ function previewRole():Role|null{
 }
 function Brand({compact=false}:{compact?:boolean}){
   return <div className={'brand '+(compact?'brand--compact':'')}>
-    <span className="brand-mark" aria-hidden="true"><Activity size={23} strokeWidth={2.8}/></span>
-    <span className="brand-words"><strong>SMTR</strong><small>SINOCET ELECTRONICS</small></span>
+    <img className="brand-logo" src={import.meta.env.BASE_URL+'sinocet-logo.jpg'}
+      alt="Groupe Sinocet Electronics · SMTR" width={192} height={70}/>
   </div>;
 }
 function Login({onSuccess}:{onSuccess:(session:Session)=>void}){
@@ -232,6 +236,7 @@ function Workspace({session,preview,onLogout}:{
     }
     switch(screen){
       case 'dashboard':return <DashboardPage {...common} role={role} onNavigate={navigate}/>;
+      case 'products':return <ProductsPage {...common} role={role} onRefresh={refreshData}/>;
       case 'stocks':case 'transfers':return <Operations {...common} screen={screen} role={role} initialCreate={openCreate} onNavigate={navigate}/>;
       case 'sales':return <SalesPage {...common} role={role} initialCreate={openCreate} userId={session?.user.id||''} onRefresh={refreshData}/>;
       case 'debts':return <DebtsPage {...common} role={role} onRefresh={refreshData}/>;
@@ -243,6 +248,7 @@ function Workspace({session,preview,onLogout}:{
       case 'supervision':return <SupervisionPage {...common} onNavigate={navigate}/>;
       case 'business_settings':return <BusinessSettingsPage {...common} role={role} onRefresh={refreshData}/>;
       case 'audit':return <AuditPage {...common}/>;
+      case 'qa':return <QaPage {...common} role={role} onRefresh={refreshData}/>;
       default:return <div className="ref-empty">Ce module est indisponible.</div>;
     }
   }
